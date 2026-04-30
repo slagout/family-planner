@@ -1,0 +1,19 @@
+# Environment
+.env
+*.env.local
+
+# Node
+node_modules/
+dist/
+build/
+
+# Postgres volumes
+pgdata/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.log
