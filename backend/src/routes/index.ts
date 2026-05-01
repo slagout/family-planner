@@ -1,0 +1,12 @@
+import { Router } from 'express';
+import { authRouter } from './authRoutes';
+import { recipeRouter } from './recipeRoutes';
+import { menuRouter } from './menuRoutes';
+import { pantryRouter } from './pantryRoutes';
+
+export const apiRouter = Router();
+
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/recipes', recipeRouter);
+apiRouter.use('/menu', menuRouter);
+apiRouter.use('/pantry', pantryRouter);

@@ -4,13 +4,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { pool } from './db.js';
-import { apiRouter } from './routes/index.js';
-import { errorHandler } from './middleware/errorHandler.js';
-import { rateLimiter } from './middleware/rateLimiter.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { pool } from './db';
+import { apiRouter } from './routes/index';
+import { errorHandler } from './middleware/errorHandler';
+import { rateLimiter } from './middleware/rateLimiter';
 
 async function runMigrations(): Promise<void> {
   const client = await pool.connect();
