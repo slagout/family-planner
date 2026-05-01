@@ -84,9 +84,8 @@ wait_for_service() {
 }
 
 # Example health-check endpoints (adjust ports if you change them)
-wait_for_service "Nginx (HTTPS)"   "https://localhost/health" || true
-wait_for_service "Backend (REST)"  "https://localhost/api/health" || true
-wait_for_service "LLM Service"    "http://localhost:8001/health" || true
+wait_for_service "Backend (REST)"  "http://localhost:4000/api/health" || true
+wait_for_service "Frontend"        "http://localhost:3000" || true
 
 # ------------------------------------------------------------------
 # 6. Optional: run DB migrations / seed data (once)
