@@ -8,8 +8,7 @@ All production deployment infrastructure for Family Planner has been successfull
 
 ### Docker Compose Stack (1 file)
 ✅ **docker-compose.prod.yml** (412 lines, 12 services)
-- MongoDB replica set (3 nodes HA)
-- PostgreSQL database
+- PostgreSQL database (immutable append-only schema)
 - Redis cache layer
 - Express backend with health checks
 - React + Nginx frontend
@@ -183,7 +182,7 @@ All production deployment infrastructure for Family Planner has been successfull
 ## 🎯 Key Features Implemented
 
 ### High Availability
-✅ MongoDB replica set (3 nodes) with automatic failover
+✅ PostgreSQL with persistent volumes and daily pg_dump backups
 ✅ PostgreSQL with replication capability
 ✅ Redis for session persistence
 ✅ Health checks on all services

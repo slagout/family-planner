@@ -45,3 +45,32 @@ All decisions made autonomously during the production deployment setup phase.
 ## Decision 009 — `withTransaction` Helper
 **Decision**: Added `withTransaction` helper to `db.ts` for atomic multi-table operations.
 **Rationale**: Chore completion requires atomic insert to `chore_completions` + `point_ledger` + `audit_log` + update to `chores.status`. Without a transaction helper, this pattern would be duplicated across services.
+
+---
+
+## Cleanup Actions (Phase 2 Sync — MongoDB Purge Completion)
+
+### Files Deleted (100% MongoDB content)
+| File | Reason |
+|------|--------|
+| `DATABASE.md` | MongoDB migration documentation — superseded, contradicts PostgreSQL mandate |
+| `MIGRATION_COMPLETE.md` | MongoDB migration completion report — artifact of deprecated migration path |
+| `README_MIGRATION.md` | MongoDB migration README — artifact of deprecated migration path |
+| `DELIVERABLES.md` | MongoDB migration deliverables — superseded by current architecture |
+| `ROADMAP.md` | MongoDB migration roadmap — superseded by current architecture |
+
+### Files Modified (MongoDB references purged)
+| File | Changes |
+|------|---------|
+| `docker-compose.prod.yml` | Removed mongo1/mongo2/mongo3/mongo-init services; removed duplicate `postgres` service (kept `db`→renamed to `postgres`); removed 6 mongo volumes; added Keycloak env vars (`KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`, `CORS_ORIGINS`) to backend; updated backend `PGHOST` from `db` to `postgres`; updated Keycloak `KC_DB_URL` from `db` to `postgres` |
+| `prometheus.yml` | Removed `mongodb` scrape job (`mongodb-exporter:9216`) |
+| `alert-rules.yml` | Removed `MongoDBDown` alert rule |
+| `ubuntu-setup.sh` | Removed `MONGO_ROOT_USER` and `MONGO_ROOT_PASSWORD` from generated `.env.prod` template |
+| `README.md` | Rewrote to reflect Keycloak OAuth 2.0 (replacing JWT-only), updated architecture diagram, updated env vars table |
+| `PRODUCTION.md` | Updated HA section, architecture diagram, and components list to remove MongoDB |
+| `QUICKSTART.md` | Replaced `MONGO_ROOT_PASSWORD` with `KEYCLOAK_ADMIN_PASSWORD` and `KEYCLOAK_CLIENT_SECRET` in required values |
+| `INFRASTRUCTURE.md` | Updated architecture diagram and key technologies table; removed MongoDB from HA section |
+| `DEPLOYMENT-SUMMARY.md` | Updated docker-compose components list to remove MongoDB |
+| `FINAL-SUMMARY.md` | Updated HA section to reflect PostgreSQL (not MongoDB) |
+| `GETTING-STARTED.md` | Updated architecture diagram and service count |
+| `INDEX.md` | Updated docker-compose components list |

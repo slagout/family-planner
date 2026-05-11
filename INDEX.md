@@ -22,13 +22,12 @@
 ## 📦 Production Stack Components
 
 ### Docker Compose Configuration
-- **[docker-compose.prod.yml](./docker-compose.prod.yml)** - Full production stack (412 lines)
-  - MongoDB replica set (3 nodes)
-  - PostgreSQL database
+- **[docker-compose.prod.yml](./docker-compose.prod.yml)** - Full production stack
+  - PostgreSQL (immutable append-only schema)
   - Redis cache layer
   - Express backend with health checks
   - React + Nginx frontend
-  - Keycloak authentication
+  - Keycloak authentication (OAuth 2.0 / OIDC)
   - Graylog + Elasticsearch logging
   - Prometheus metrics
   - Grafana dashboards

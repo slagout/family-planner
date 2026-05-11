@@ -13,7 +13,7 @@ A full-stack family meal planning app — generate a weekly dinner plan, track w
 | **Pantry Tracker** | Add/edit/delete items; quantities carry over to shopping |
 | **Smart Shopping List** | Only shows ingredients you're actually missing |
 | **Kroger Integration** | One-click cart creation via Kroger API (optional) |
-| **Auth** | JWT-based register/login; all data is per-user |
+| **Auth** | Keycloak OAuth 2.0 / OIDC with Parent/Child RBAC roles |
 
 ---
 
@@ -88,9 +88,7 @@ Base URL: `http://localhost:4000/api`
 ### Auth
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `POST` | `/auth/register` | — | Create account `{ email, password, displayName }` |
-| `POST` | `/auth/login` | — | Sign in → returns JWT `{ email, password }` |
-| `GET` | `/auth/me` | ✅ | Current user profile |
+| `GET` | `/auth/me` | ✅ | Current user profile (synced from Keycloak) |
 
 ### Recipes
 | Method | Endpoint | Auth | Description |
@@ -212,7 +210,7 @@ family-planner/
 Family Planner is production-ready! See **[PRODUCTION.md](./PRODUCTION.md)** for:
 - Complete production architecture
 - 30-minute quick start deployment
-- HA MongoDB replica sets
+- PostgreSQL immutable schema
 - Monitoring with Prometheus + Grafana
 - Centralized logging with Graylog
 - Automated backups
