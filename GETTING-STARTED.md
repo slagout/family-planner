@@ -7,7 +7,7 @@ I have successfully created a **complete, production-ready deployment infrastruc
 ## 📊 What Was Delivered
 
 ### ✅ Infrastructure as Code
-- **docker-compose.prod.yml** - Complete production stack with 12 services
+- **docker-compose.prod.yml** - Complete production stack with 10 services
 - **3 Provisioning Scripts** - Automated system, network, and SSL setup
 - **4 Configuration Files** - Traefik, Prometheus, Grafana, Graylog
 - **1 CI/CD Pipeline** - GitHub Actions with automated testing and deployment
@@ -49,8 +49,9 @@ I have successfully created a **complete, production-ready deployment infrastruc
 │      Docker Network (172.25.0.0/16) │
 │                                      │
 │ ┌──────────┐  ┌──────────────────┐ │
-│ │PostgreSQL│  │ MongoDB Replica  │ │
-│ │          │  │ Set (3 nodes)    │ │
+│ │PostgreSQL│  │ Keycloak         │ │
+│ │(immutable│  │ OAuth 2.0 / OIDC │ │
+│ │ schema)  │  │                  │ │
 │ └──────────┘  └──────────────────┘ │
 │                                      │
 │ ┌──────────┐  ┌──────────────────┐ │
@@ -131,7 +132,7 @@ I have successfully created a **complete, production-ready deployment infrastruc
 
 | Feature | Implementation |
 |---------|-----------------|
-| **High Availability** | MongoDB replica set (3 nodes) + PostgreSQL |
+| **High Availability** | PostgreSQL persistent volumes + Redis caching |
 | **Load Balancing** | Traefik with Docker label-based routing |
 | **SSL/TLS** | Let's Encrypt with automatic renewal |
 | **Monitoring** | Prometheus (metrics) + Grafana (dashboards) |
@@ -189,9 +190,8 @@ Verify health (2 min)
 
 ## 🔍 What's Included in docker-compose.prod.yml
 
-### Data Layer (4 services)
-- **PostgreSQL** - Primary relational database
-- **MongoDB Replica Set** - 3-node cluster for documents
+### Data Layer (3 services)
+- **PostgreSQL** - Primary relational database (immutable append-only schema)
 - **Redis** - Cache and session store
 - **Elasticsearch** - Log indexing and search
 

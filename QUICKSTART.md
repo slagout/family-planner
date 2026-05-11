@@ -80,8 +80,8 @@ nano .env.prod
 **Required values** to change:
 - `DOMAIN` - Your actual domain
 - `POSTGRES_PASSWORD` - Generate: `openssl rand -base64 32`
-- `MONGO_ROOT_PASSWORD` - Generate: `openssl rand -base64 32`
-- `JWT_SECRET` - Generate: `openssl rand -base64 64`
+- `KEYCLOAK_ADMIN_PASSWORD` - Generate: `openssl rand -base64 32`
+- `KEYCLOAK_CLIENT_SECRET` - Generate: `openssl rand -base64 32`
 - `LETSENCRYPT_EMAIL` - Your email
 - All other `*_PASSWORD` fields
 
@@ -210,7 +210,7 @@ curl -f https://family-planner.example.com/api/health/live
 3. Pre-configured dashboards:
    - Overview - System health
    - Backend - Application metrics
-   - Database - PostgreSQL & MongoDB stats
+   - Database - PostgreSQL stats
    - Infrastructure - CPU, memory, disk
 
 ### Alert Rules
@@ -269,9 +269,6 @@ docker exec family-planner-db vacuumdb -U fp_user family_planner
 ```bash
 # Check PostgreSQL
 docker exec family-planner-db psql -U fp_user -d family_planner -c "SELECT 1"
-
-# Check MongoDB replica set
-docker exec mongo1 mongosh -u admin -p $MONGO_ROOT_PASSWORD --eval "rs.status()"
 
 # Check connections
 docker exec family-planner-db psql -U fp_user -d family_planner -c "SELECT * FROM pg_stat_activity;"

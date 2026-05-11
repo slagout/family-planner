@@ -35,10 +35,10 @@
         ┌────────────┬───────────────┼──────────────┬─────────────┐
         │            │               │              │             │
     ┌───▼──┐  ┌─────▼───┐    ┌──────▼────┐  ┌────▼───┐   ┌─────▼───┐
-    │ Pg   │  │ MongoDB │    │ Keycloak  │  │ Redis  │   │ Graylog │
-    │ SQL  │  │ Replica │    │ OAuth 2.0 │  │ Cache  │   │ Logging │
-    │      │  │ Set×3   │    │           │  │        │   │ + ES    │
-    └──────┘  └─────────┘    └───────────┘  └────────┘   └─────────┘
+    │ Pg   │  │ Keycloak │    │ Keycloak  │  │ Redis  │   │ Graylog │
+    │ SQL  │  │ OAuth2.0 │    │ OAuth 2.0 │  │ Cache  │   │ Logging │
+    │(imm.)│  │          │    │           │  │        │   │ + ES    │
+    └──────┘  └──────────┘    └───────────┘  └────────┘   └─────────┘
 
     ┌──────────────────────────────────────────────────────────────┐
     │  Prometheus (Metrics) + Grafana (Dashboards + Alerts)       │
@@ -51,8 +51,7 @@
 |-----------|---------|---------|
 | Docker | 24.x | Containerization |
 | Docker Compose | 2.20+ | Orchestration |
-| PostgreSQL | 16 | Primary relational database |
-| MongoDB | 7.0 | Document store (analytics, logs) |
+| PostgreSQL | 16 | Primary database (immutable append-only schema) |
 | Keycloak | 22.0 | Identity & Access Management |
 | Redis | 7 | Caching & session management |
 | Traefik | 2.10 | Reverse proxy with Let's Encrypt |
@@ -67,7 +66,7 @@
 
 ### High-Availability Considerations
 
-1. **Database Redundancy**: MongoDB replica set (3 nodes) for failover
+1. **Database Redundancy**: PostgreSQL with persistent volumes and daily pg_dump backups
 2. **Caching Layer**: Redis for session persistence and cache
 3. **Load Balancing**: Traefik distributes traffic
 4. **Centralized Logging**: Graylog + Elasticsearch for debugging
@@ -92,10 +91,10 @@ External Network (Internet)
     │  │  Nginx      │  │  Express       │      │
     │  └─────────────┘  └────────────────┘      │
     │                          │                 │
-    │  ┌─────────┐  ┌─────┐    │    ┌────────┐  │
-    │  │PostgreSQL  │Mongo │    │    │Graylog │  │
-    │  │        │    │RS   │    │    │        │  │
-    │  └─────────┘  └─────┘    │    └────────┘  │
+    │  ┌──────────┐            │    ┌────────┐  │
+    │  │PostgreSQL│            │    │Graylog │  │
+    │  │          │            │    │        │  │
+    │  └──────────┘            │    └────────┘  │
     │                          │                 │
     │                   ┌──────▼────┐            │
     │                   │ Keycloak   │            │
@@ -218,8 +217,7 @@ POSTGRES_USER=fp_user
 POSTGRES_PASSWORD=<random-secure-password>
 
 # MongoDB
-MONGO_ROOT_USER=admin
-MONGO_ROOT_PASSWORD=<random-secure-password>
+# (removed — PostgreSQL-only architecture)
 
 # Redis
 REDIS_PASSWORD=<random-secure-password>
@@ -308,21 +306,14 @@ source .env.prod
 docker compose -f docker-compose.prod.yml up -d
 
 # Verify all services are running
+### Verify Deployment
+
+```bash
 docker compose -f docker-compose.prod.yml ps
 
 # Check health endpoints
 curl -f http://localhost:4000/api/health
 curl -f http://localhost:80/
-```
-
-### Initialize MongoDB Replica Set
-
-After initial deployment, MongoDB replicaset initialization happens automatically via the `mongo-init` service.
-
-Verify replica set status:
-
-```bash
-docker exec mongo1 mongosh -u admin -p $MONGO_ROOT_PASSWORD --eval "rs.status()"
 ```
 
 ### Access Services
@@ -347,7 +338,6 @@ Prometheus scrapes metrics every 15 seconds from:
 
 - **Backend**: http://backend:4000/metrics
 - **PostgreSQL**: Via postgres-exporter
-- **MongoDB**: Via mongodb-exporter
 - **Redis**: Via redis-exporter
 - **Traefik**: http://traefik:8080/metrics
 - **Docker**: Via socket
@@ -361,11 +351,10 @@ Critical alerts configured in `alert-rules.yml`:
 2. **Backend High Latency**: P99 latency > 1 second
 3. **High Error Rate**: >5% errors in 5 minutes
 4. **PostgreSQL Down**: Connection lost
-5. **MongoDB Down**: Replica set unavailable
-6. **High CPU**: >90% usage for 5+ minutes
-7. **High Memory**: >85% usage for 5+ minutes
-8. **Low Disk**: >85% full
-9. **Container Restarts**: >2 restarts in 5 minutes
+5. **High CPU**: >90% usage for 5+ minutes
+6. **High Memory**: >85% usage for 5+ minutes
+7. **Low Disk**: >85% full
+8. **Container Restarts**: >2 restarts in 5 minutes
 
 ### Grafana Dashboards
 
@@ -403,7 +392,6 @@ Backup script runs daily at midnight (configurable):
 
 Backups include:
 - PostgreSQL database dump (compressed)
-- MongoDB collections (with indexes)
 - Docker volumes
 - Configuration files
 
@@ -429,9 +417,6 @@ ls /opt/family-planner/backups/
 # Restore PostgreSQL
 gunzip < /opt/family-planner/backups/family-planner-backup-20240101_120000-postgres.sql.gz | \
   docker exec -i family-planner-db psql -U fp_user -d family_planner
-
-# Restore MongoDB
-docker exec -i mongo1 mongorestore --archive < /opt/family-planner/backups/family-planner-backup-20240101_120000-mongo
 
 # Restart services
 docker compose -f docker-compose.prod.yml up -d
@@ -549,14 +534,10 @@ services:
 
 ### Database Scaling
 
-MongoDB replica set already provides:
-- Automatic failover
-- Read replicas (for scaling reads)
-- Sharding (future: for very large datasets)
-
-PostgreSQL:
-- Read replicas via streaming replication
+PostgreSQL provides:
+- Streaming replication for read scaling
 - Connection pooling via pgBouncer (future)
+- Horizontal sharding via Citus (future, for very large datasets)
 
 ---
 
@@ -609,7 +590,6 @@ docker logs family-planner-green_backend_1 | head -100
 docker pull postgres:16-alpine
 docker pull node:20-alpine
 docker pull redis:7-alpine
-docker pull mongo:7.0
 
 # Rebuild and restart
 docker compose -f docker-compose.prod.yml build --no-cache
@@ -633,9 +613,6 @@ sudo /opt/family-planner/scripts/renew-certs.sh
 ```bash
 # PostgreSQL VACUUM (cleanup dead tuples)
 docker exec family-planner-db vacuumdb -U fp_user family_planner
-
-# MongoDB rebuild indexes
-docker exec mongo1 mongosh -u admin -p $MONGO_ROOT_PASSWORD --eval "db.collection.reIndex()"
 ```
 
 ---
@@ -683,7 +660,7 @@ docker exec mongo1 mongosh -u admin -p $MONGO_ROOT_PASSWORD --eval "db.collectio
 - [Prometheus Documentation](https://prometheus.io/docs/)
 - [Grafana Documentation](https://grafana.com/docs/)
 - [Graylog Documentation](https://docs.graylog.org/)
-- [MongoDB Replica Sets](https://docs.mongodb.com/manual/replication/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 
 ---
 

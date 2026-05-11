@@ -204,13 +204,13 @@
     -d '{"email":"test@example.com","password":"TestPass123","displayName":"Test User"}'
   ```
 
-- [ ] **Verify Database & Replication**
+- [ ] **Verify Database**
   ```bash
-  # Check MongoDB replica set
-  docker exec mongo1 mongosh -u admin -p $MONGO_ROOT_PASSWORD --eval "rs.status()"
-  
   # Check PostgreSQL connections
   docker exec family-planner-db psql -U fp_user -d family_planner -c "SELECT count(*) FROM pg_stat_activity;"
+  
+  # Verify immutable tables
+  docker exec family-planner-db psql -U fp_user -d family_planner -c "\dt"
   ```
 
 - [ ] **Monitor Metrics for 5 Minutes**
@@ -375,10 +375,7 @@ ls -lt /opt/family-planner/backups/ | head -1
 gunzip < /opt/family-planner/backups/family-planner-backup-20240115_120000-postgres.sql.gz | \
   docker exec -i family-planner-db psql -U fp_user -d family_planner
 
-# 4. Restore MongoDB
-docker exec -i mongo1 mongorestore --archive < /opt/family-planner/backups/family-planner-backup-20240115_120000-mongo.tar.gz
-
-# 5. Restart all services
+# 4. Restart all services
 docker compose -f docker-compose.prod.yml -p family-planner-blue up -d
 
 # 6. Run data integrity checks

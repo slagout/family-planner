@@ -7,14 +7,13 @@ I have created a **complete, production-ready deployment infrastructure** for th
 ## ✅ Deliverables Created
 
 ### 1. **Production Docker Compose Stack**
-   - **File**: `docker-compose.prod.yml` (412 lines)
+   - **File**: `docker-compose.prod.yml`
    - **Components**:
-     - MongoDB replica set (3 nodes for HA)
-     - PostgreSQL database
+     - PostgreSQL database (immutable append-only schema)
      - Redis cache layer
      - Express backend with health checks
      - React + Nginx frontend
-     - Keycloak identity management
+     - Keycloak identity management (OAuth 2.0 / OIDC)
      - Graylog + Elasticsearch logging stack
      - Prometheus metrics collection
      - Grafana dashboards
@@ -72,19 +71,19 @@ I have created a **complete, production-ready deployment infrastructure** for th
    - Security headers (HSTS, CSP, etc.)
    
    #### **prometheus.yml** (Metrics Collection)
-   - 11 scrape job configurations
+   - 9 scrape job configurations
    - Docker exporter
    - Application metrics
-   - Database exporters (PostgreSQL, MongoDB, Redis)
+   - Database exporters (PostgreSQL, Redis)
    - Traefik metrics
    - Node exporter for system metrics
    - Keycloak metrics
    
    #### **alert-rules.yml** (Alert Definitions)
-   - Critical alerts (BackendDown, PostgresDown, MongoDBDown)
-   - Warning alerts (HighLatency, HighErrorRate, HighCPU, HighMemory)
+   - Critical alerts (BackendDown, PostgresDown, HighErrorRate)
+   - Warning alerts (HighLatency, HighCPU, HighMemory)
    - Infrastructure alerts (DiskSpace, NetworkErrors, ContainerRestarts)
-   - 20+ pre-configured alert rules
+   - 18+ pre-configured alert rules
    
    #### **grafana-config.yml** (Dashboard Configuration)
    - Prometheus datasource definition
@@ -190,9 +189,8 @@ I have created a **complete, production-ready deployment infrastructure** for th
 ## 📊 Architecture Highlights
 
 ### High Availability
-- **MongoDB Replica Set**: 3-node cluster with automatic failover
+- **PostgreSQL**: Primary database with replication capability and persistent volumes
 - **Redis**: Session persistence and caching
-- **PostgreSQL**: Primary database with replication capability
 - **Load Balancing**: Traefik distributes traffic
 - **Health Checks**: Automatic container restart on failure
 
@@ -295,7 +293,7 @@ Step 6: Run health-check.sh to verify (2 min)
 
 | Feature | Implementation |
 |---------|-----------------|
-| **High Availability** | MongoDB replica set + Redis caching |
+| **High Availability** | PostgreSQL persistent volumes + Redis caching |
 | **Load Balancing** | Traefik with health-based routing |
 | **SSL/TLS** | Let's Encrypt with automatic renewal |
 | **Monitoring** | Prometheus + Grafana + Graylog |
@@ -304,7 +302,7 @@ Step 6: Run health-check.sh to verify (2 min)
 | **Backups** | Daily automated with retention policy |
 | **Health Checks** | Liveness + readiness probes |
 | **Metrics** | Prometheus endpoints on all services |
-| **Security** | JWT auth, rate limiting, input validation |
+| **Security** | Keycloak OAuth 2.0 + RBAC, rate limiting, security headers |
 | **Scaling** | Horizontal scaling ready (multi-container) |
 | **Updates** | Zero-downtime blue-green deployment |
 | **Recovery** | Rollback procedures documented |

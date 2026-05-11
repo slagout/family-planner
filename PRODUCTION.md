@@ -6,7 +6,7 @@ This document provides guidance for deploying Family Planner to production envir
 
 Family Planner provides a complete production-ready stack with:
 
-- **High Availability**: MongoDB replica set (3 nodes)
+- **High Availability**: PostgreSQL with persistent volumes, Redis caching
 - **Load Balancing**: Traefik reverse proxy
 - **Monitoring**: Prometheus + Grafana dashboards
 - **Logging**: Centralized Graylog + Elasticsearch
@@ -60,8 +60,8 @@ Traefik (Port 80, 443, TLS)
     ┌───────────────────────────────┐
     │   Docker Bridge Network       │
     │                               │
-    ├─ PostgreSQL (Primary DB)      │
-    ├─ MongoDB Replica Set (3 nodes)│
+    ├─ PostgreSQL (Immutable DB)    │
+    ├─ Keycloak (OAuth 2.0)        │
     ├─ Redis (Cache)               │
     ├─ Graylog (Logging)           │
     ├─ Elasticsearch (Search)      │
@@ -74,7 +74,7 @@ Traefik (Port 80, 443, TLS)
 ### Application Services
 - **Frontend**: React + Vite + Nginx
 - **Backend**: Express.js + TypeScript
-- **Databases**: PostgreSQL (primary), MongoDB (document store)
+- **Databases**: PostgreSQL (immutable append-only schema)
 - **Cache**: Redis
 - **Auth**: Keycloak (OAuth 2.0)
 
@@ -93,8 +93,8 @@ All secrets should be stored in `.env.prod`:
 ```bash
 DOMAIN=family-planner.example.com
 POSTGRES_PASSWORD=<secure-random>
-MONGO_ROOT_PASSWORD=<secure-random>
-JWT_SECRET=<secure-random>
+KEYCLOAK_ADMIN_PASSWORD=<secure-random>
+KEYCLOAK_CLIENT_SECRET=<secure-random>
 REDIS_PASSWORD=<secure-random>
 LETSENCRYPT_EMAIL=admin@example.com
 # ... see .env.prod.example for all options
@@ -122,7 +122,7 @@ openssl rand -base64 64  # JWT secret
 Pre-configured dashboards:
 1. **Overview** - System health
 2. **Backend** - Application metrics, latency, errors
-3. **Database** - PostgreSQL & MongoDB stats
+3. **Database** - PostgreSQL stats
 4. **Infrastructure** - CPU, memory, disk, network
 5. **Docker** - Container metrics & restarts
 
@@ -131,7 +131,6 @@ Pre-configured dashboards:
 Scrapes metrics from:
 - Backend API (port 4000/metrics)
 - PostgreSQL exporter
-- MongoDB exporter
 - Redis exporter
 - Docker containers
 - System metrics
@@ -174,7 +173,6 @@ Verify all services:
 
 Daily backups run at midnight (configurable) and include:
 - PostgreSQL database dump (compressed)
-- MongoDB collections
 - Docker volumes
 - Configuration files
 
@@ -196,9 +194,6 @@ docker compose -f docker-compose.prod.yml down
 # Restore PostgreSQL
 gunzip < /opt/family-planner/backups/family-planner-backup-*.sql.gz | \
   docker exec -i family-planner-db psql -U fp_user -d family_planner
-
-# Restore MongoDB
-docker exec -i mongo1 mongorestore --archive < /opt/family-planner/backups/family-planner-backup-*-mongo
 
 # Restart
 docker compose -f docker-compose.prod.yml up -d
@@ -269,9 +264,6 @@ docker compose -f docker-compose.prod.yml restart [service-name]
 ```bash
 # Test PostgreSQL
 docker exec family-planner-db psql -U fp_user -d family_planner -c "SELECT 1"
-
-# Test MongoDB
-docker exec mongo1 mongosh -u admin -p $MONGO_ROOT_PASSWORD --eval "rs.status()"
 
 # Test Redis
 docker exec redis redis-cli ping
