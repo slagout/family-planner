@@ -1,14 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { pool } from '../db';
 import { AuthPayload } from '../types';
+import { signToken, createRefreshToken, verifyToken } from '../middleware/jwt-validator';
 
 const SALT_ROUNDS = 12;
-
-function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '24h' });
-}
 
 export async function register(req: Request, res: Response): Promise<void> {
   const { email, password, displayName } = req.body;
@@ -39,13 +35,18 @@ export async function register(req: Request, res: Response): Promise<void> {
       [email.toLowerCase(), passwordHash, displayName || null]
     );
     const user = rows[0];
-    const token = signToken({ userId: user.id, email: user.email });
+    const payload: AuthPayload = { userId: user.id, email: user.email };
+    const token = signToken(payload);
+    const refreshToken = createRefreshToken(payload);
+
     res.status(201).json({
       token,
+      refreshToken,
       user: { id: user.id, email: user.email, displayName: user.display_name, createdAt: user.created_at },
     });
   } catch (err) {
-    throw err;
+    console.error('Registration error:', err);
+    res.status(500).json({ error: 'Registration failed' });
   }
 }
 
@@ -70,13 +71,34 @@ export async function login(req: Request, res: Response): Promise<void> {
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
-    const token = signToken({ userId: user.id, email: user.email });
+    const payload: AuthPayload = { userId: user.id, email: user.email };
+    const token = signToken(payload);
+    const refreshToken = createRefreshToken(payload);
+
     res.json({
       token,
+      refreshToken,
       user: { id: user.id, email: user.email, displayName: user.display_name, createdAt: user.created_at },
     });
   } catch (err) {
-    throw err;
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Login failed' });
+  }
+}
+
+export async function refreshToken(req: Request, res: Response): Promise<void> {
+  const { refreshToken: token } = req.body;
+  if (!token) {
+    res.status(400).json({ error: 'Refresh token is required' });
+    return;
+  }
+
+  try {
+    const payload = verifyToken(token) as AuthPayload;
+    const newToken = signToken(payload);
+    res.json({ token: newToken });
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid refresh token' });
   }
 }
 
@@ -93,6 +115,7 @@ export async function getMe(req: Request, res: Response): Promise<void> {
     const u = rows[0];
     res.json({ id: u.id, email: u.email, displayName: u.display_name, createdAt: u.created_at });
   } catch (err) {
-    throw err;
+    console.error('Get user error:', err);
+    res.status(500).json({ error: 'Failed to retrieve user' });
   }
 }

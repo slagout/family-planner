@@ -1,0 +1,77 @@
+global:
+  resolution: 60s
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'family-planner-prod'
+    environment: 'production'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Docker containers via socket
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['unix:///var/run/docker.sock']
+
+  # Backend application
+  - job_name: 'backend'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['backend:4000']
+    metrics_path: '/metrics'
+
+  # PostgreSQL exporter
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # MongoDB exporter
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb-exporter:9216']
+
+  # Redis exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  # Graylog
+  - job_name: 'graylog'
+    static_configs:
+      - targets: ['graylog:9000']
+
+  # Elasticsearch
+  - job_name: 'elasticsearch'
+    static_configs:
+      - targets: ['elasticsearch:9200']
+    metrics_path: '/_prometheus/metrics'
+
+  # Traefik
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['traefik:8080']
+    metrics_path: '/metrics'
+
+  # Node exporter for system metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Keycloak
+  - job_name: 'keycloak'
+    static_configs:
+      - targets: ['keycloak:8080']
+    metrics_path: '/auth/metrics'

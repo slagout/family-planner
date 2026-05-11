@@ -1,0 +1,148 @@
+# Traefik Dynamic Configuration for Family Planner
+# Routing rules, middleware, and service definitions
+
+http:
+  routers:
+    # Frontend - Root domain
+    frontend:
+      entryPoints:
+        - web
+        - websecure
+      rule: "Host(`${DOMAIN}`)"
+      service: frontend
+      tls:
+        certResolver: letsencrypt
+
+    # API Backend
+    backend-api:
+      entryPoints:
+        - web
+        - websecure
+      rule: "Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      service: backend
+      middleware:
+        - api-strip-prefix
+      tls:
+        certResolver: letsencrypt
+
+    # Keycloak Auth
+    keycloak:
+      entryPoints:
+        - web
+        - websecure
+      rule: "Host(`${DOMAIN}`) && PathPrefix(`/auth`)"
+      service: keycloak
+      tls:
+        certResolver: letsencrypt
+
+    # Prometheus Dashboard (internal only)
+    prometheus:
+      entryPoints:
+        - web
+      rule: "Host(`${DOMAIN}`) && PathPrefix(`/prometheus`)"
+      service: prometheus
+      middleware:
+        - prometheus-strip-prefix
+
+    # Grafana Dashboard (internal only)
+    grafana:
+      entryPoints:
+        - web
+      rule: "Host(`${DOMAIN}`) && PathPrefix(`/grafana`)"
+      service: grafana
+
+    # Graylog Dashboard (internal only)
+    graylog:
+      entryPoints:
+        - web
+      rule: "Host(`${DOMAIN}`) && PathPrefix(`/graylog`)"
+      service: graylog
+
+  services:
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:80"
+        healthCheck:
+          path: /
+          interval: 10s
+          timeout: 5s
+
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:4000"
+        healthCheck:
+          path: /api/health
+          interval: 10s
+          timeout: 5s
+
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:8080"
+        healthCheck:
+          path: /auth/health/ready
+          interval: 10s
+          timeout: 5s
+
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
+
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+
+    graylog:
+      loadBalancer:
+        servers:
+          - url: "http://graylog:9000"
+
+  middlewares:
+    # Strip /api prefix for backend
+    api-strip-prefix:
+      stripPrefix:
+        prefixes:
+          - /api
+
+    # Strip /prometheus prefix
+    prometheus-strip-prefix:
+      stripPrefix:
+        prefixes:
+          - /prometheus
+
+    # Compression middleware
+    compression:
+      compress: {}
+
+    # Rate limiting for API
+    api-rate-limit:
+      rateLimit:
+        average: 1000
+        burst: 2000
+        period: 1s
+
+    # Security headers
+    security-headers:
+      headers:
+        sslRedirect: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305

@@ -1,0 +1,137 @@
+groups:
+  - name: 'application'
+    interval: 30s
+    rules:
+      # Backend health checks
+      - alert: BackendDown
+        expr: up{job="backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend service is down"
+          description: "Backend has been unreachable for more than 1 minute"
+
+      - alert: BackendHighLatency
+        expr: histogram_quantile(0.99, backend_request_duration_seconds) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backend high latency detected"
+          description: "99th percentile latency is above 1 second"
+
+      - alert: BackendErrorRate
+        expr: rate(backend_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backend error rate high"
+          description: "Error rate is above 5% for the last 5 minutes"
+
+  - name: 'infrastructure'
+    interval: 30s
+    rules:
+      # Database health
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL exporter cannot connect to the database"
+
+      - alert: MongoDBDown
+        expr: up{job="mongodb"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB is down"
+          description: "MongoDB exporter cannot connect to the database"
+
+      # Redis health
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis is down"
+          description: "Redis connection lost (cache may degrade performance)"
+
+      # Container restarts
+      - alert: ContainerRestartingLoop
+        expr: increase(docker_container_last_seen[5m]) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container restarting frequently"
+          description: "Container {{ $labels.name }} is restarting more than twice every 5 minutes"
+
+  - name: 'system'
+    interval: 30s
+    rules:
+      # CPU usage
+      - alert: HighCPUUsage
+        expr: node_load1 / on(instance) count(node_cpu_seconds_total{mode="system"}) by (instance) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU load is above 90% on {{ $labels.instance }}"
+
+      # Memory usage
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 85% on {{ $labels.instance }}"
+
+      # Disk usage
+      - alert: LowDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes{device!~"tmpfs|fuse.lxcfs|squashfs|vfat"} / node_filesystem_size_bytes)) > 0.85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space"
+          description: "Disk usage is above 85% on {{ $labels.device }}"
+
+      # Network issues
+      - alert: HighNetworkErrors
+        expr: rate(node_network_receive_errs_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High network errors"
+          description: "Network errors detected on {{ $labels.device }}"
+
+  - name: 'logging'
+    interval: 30s
+    rules:
+      - alert: GraylogDown
+        expr: up{job="graylog"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Graylog logging service down"
+          description: "Graylog service is not responding to health checks"
+
+      - alert: ElasticsearchDown
+        expr: up{job="elasticsearch"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Elasticsearch is down"
+          description: "Elasticsearch service is critical for logging functionality"

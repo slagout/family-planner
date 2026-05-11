@@ -1,0 +1,410 @@
+version: '3.9'
+
+services:
+  # MongoDB Replica Set - Node 1
+  mongo1:
+    image: mongo:7.0
+    container_name: mongo1
+    restart: unless-stopped
+    networks:
+      - family-planner
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo1_data:/data/db
+      - mongo1_config:/data/configdb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    command: 
+      - --replSet=rs0
+      - --bind_ip_all
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh -u ${MONGO_ROOT_USER:-admin} -p ${MONGO_ROOT_PASSWORD} localhost:27017/test --quiet || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB Replica Set - Node 2
+  mongo2:
+    image: mongo:7.0
+    container_name: mongo2
+    restart: unless-stopped
+    networks:
+      - family-planner
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo2_data:/data/db
+      - mongo2_config:/data/configdb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    command:
+      - --replSet=rs0
+      - --bind_ip_all
+    depends_on:
+      - mongo1
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh -u ${MONGO_ROOT_USER:-admin} -p ${MONGO_ROOT_PASSWORD} localhost:27017/test --quiet || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB Replica Set - Node 3
+  mongo3:
+    image: mongo:7.0
+    container_name: mongo3
+    restart: unless-stopped
+    networks:
+      - family-planner
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo3_data:/data/db
+      - mongo3_config:/data/configdb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    command:
+      - --replSet=rs0
+      - --bind_ip_all
+    depends_on:
+      - mongo1
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh -u ${MONGO_ROOT_USER:-admin} -p ${MONGO_ROOT_PASSWORD} localhost:27017/test --quiet || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB Replica Set Initialization
+  mongo-init:
+    image: mongo:7.0
+    container_name: mongo-init
+    restart: "no"
+    networks:
+      - family-planner
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    command: >
+      mongosh --host mongo1:27017 -u ${MONGO_ROOT_USER:-admin} -p ${MONGO_ROOT_PASSWORD} <<EOF
+      rs.initiate({
+        _id: "rs0",
+        members: [
+          {_id: 0, host: "mongo1:27017", priority: 2},
+          {_id: 1, host: "mongo2:27017", priority: 1},
+          {_id: 2, host: "mongo3:27017", priority: 1}
+        ]
+      });
+      EOF
+
+  # PostgreSQL Database (kept for backward compatibility)
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    networks:
+      - family-planner
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-family_planner}
+      POSTGRES_USER: ${POSTGRES_USER:-fp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fp_user} -d ${POSTGRES_DB:-family_planner}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache & Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    networks:
+      - family-planner
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Elasticsearch for Graylog
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.0
+    container_name: elasticsearch
+    restart: unless-stopped
+    networks:
+      - family-planner
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Graylog Logging Stack
+  graylog:
+    image: graylog/graylog:5.1
+    container_name: graylog
+    restart: unless-stopped
+    networks:
+      - family-planner
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      GRAYLOG_PASSWORD_SECRET: ${GRAYLOG_PASSWORD_SECRET}
+      GRAYLOG_ROOT_PASSWORD_SHA2: ${GRAYLOG_ROOT_PASSWORD_SHA2}
+      GRAYLOG_HTTP_EXTERNAL_URI: "http://${DOMAIN:-localhost}:9000/"
+      GRAYLOG_ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
+    volumes:
+      - graylog_data:/var/lib/graylog-server
+      - graylog_journal:/var/log/graylog
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.graylog.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/graylog`)"
+      - "traefik.http.services.graylog.loadbalancer.server.port=9000"
+
+  # PostgreSQL Database (legacy)
+  db:
+    image: postgres:16-alpine
+    container_name: family-planner-db
+    restart: unless-stopped
+    networks:
+      - family-planner
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-family_planner}
+      POSTGRES_USER: ${POSTGRES_USER:-fp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fp_user} -d ${POSTGRES_DB:-family_planner}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Express Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: family-planner-backend
+    restart: unless-stopped
+    networks:
+      - family-planner
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-family_planner}
+      PGUSER: ${POSTGRES_USER:-fp_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      KROGER_CLIENT_ID: ${KROGER_CLIENT_ID:-}
+      KROGER_CLIENT_SECRET: ${KROGER_CLIENT_SECRET:-}
+      KROGER_REDIRECT_URI: ${KROGER_REDIRECT_URI:-https://${DOMAIN:-localhost}/api/kroger/callback}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./backend/dist:/app/dist
+      - ./backend/migrations:/app/migrations
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/api`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=4000"
+
+  # React Frontend with Nginx
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: family-planner-frontend
+    restart: unless-stopped
+    networks:
+      - family-planner
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_URL: https://${DOMAIN:-localhost}/api
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+  # Keycloak Identity & Access Management
+  keycloak:
+    image: keycloak/keycloak:22.0.0
+    container_name: keycloak
+    restart: unless-stopped
+    networks:
+      - family-planner
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-fp_user}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KC_HOSTNAME: ${DOMAIN:-localhost}
+      KC_PROXY: edge
+    command: start-dev
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/auth`)"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    networks:
+      - family-planner
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9090/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/prometheus`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # Grafana Dashboards & Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    networks:
+      - family-planner
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://${DOMAIN:-localhost}/grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/grafana`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # Traefik Reverse Proxy with Let's Encrypt
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik
+    restart: unless-stopped
+    networks:
+      - family-planner
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik/traefik.yml:/traefik.yml:ro
+      - ./config/traefik/dynamic.yml:/dynamic.yml:ro
+      - ./letsencrypt:/letsencrypt
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      EMAIL: ${LETSENCRYPT_EMAIL:-admin@example.com}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/traefik`)"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  family-planner:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  pgdata:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  mongo1_data:
+    driver: local
+  mongo1_config:
+    driver: local
+  mongo2_data:
+    driver: local
+  mongo2_config:
+    driver: local
+  mongo3_data:
+    driver: local
+  mongo3_config:
+    driver: local
+  elasticsearch_data:
+    driver: local
+  graylog_data:
+    driver: local
+  graylog_journal:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

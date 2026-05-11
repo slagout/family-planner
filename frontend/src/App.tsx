@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { Navbar } from './components/Navbar';
+import { OfflineIndicator } from './components/OfflineIndicator';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
 import { WeeklyPlanner } from './components/WeeklyPlanner';
@@ -20,6 +21,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <OfflineIndicator />
       {user && <Navbar />}
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />

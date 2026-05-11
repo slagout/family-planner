@@ -183,10 +183,47 @@ family-planner/
 │       ├── hooks/           # useAuth, useMenuPlan
 │       ├── api/             # Axios client with interceptors
 │       └── types/           # Shared TypeScript types
-├── docker-compose.yml
-├── .env.example
-└── start-family-planner.sh
+├── docker-compose.yml                 # Development stack
+├── docker-compose.prod.yml            # Production stack (HA, monitoring, logging)
+├── .env.example                       # Development env template
+├── .env.prod.example                  # Production env template
+├── PRODUCTION.md                      # Production deployment overview
+├── QUICKSTART.md                      # 30-minute quick start guide
+├── INFRASTRUCTURE.md                  # Complete operations guide
+├── DEPLOYMENT.md                      # Detailed procedures & checklists
+├── DEPLOYMENT-SUMMARY.md              # Summary of all created files
+├── ubuntu-setup.sh                    # Production system setup
+├── network-config.sh                  # Network & firewall configuration
+├── ssl-setup.sh                       # TLS/Let's Encrypt setup
+├── health-check.sh                    # Service health verification
+├── prometheus.yml                     # Prometheus metrics config
+├── alert-rules.yml                    # Prometheus alert rules
+├── traefik.yml                        # Traefik core config
+├── traefik-dynamic.yml                # Traefik routing rules
+├── grafana-config.yml                 # Grafana configuration
+├── ci-cd.yml                          # GitHub Actions pipeline
+└── start-family-planner.sh            # Local development startup
 ```
+
+---
+
+## 🚀 Production Deployment
+
+Family Planner is production-ready! See **[PRODUCTION.md](./PRODUCTION.md)** for:
+- Complete production architecture
+- 30-minute quick start deployment
+- HA MongoDB replica sets
+- Monitoring with Prometheus + Grafana
+- Centralized logging with Graylog
+- Automated backups
+- Blue-green deployment
+- Alert rules and dashboards
+
+**Quick Links**:
+- **[QUICKSTART.md](./QUICKSTART.md)** - 30 minutes to production
+- **[INFRASTRUCTURE.md](./INFRASTRUCTURE.md)** - Operations guide (17,000+ words)
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Procedures & checklists
+- **[DEPLOYMENT-SUMMARY.md](./DEPLOYMENT-SUMMARY.md)** - What was created
 
 ---
 
