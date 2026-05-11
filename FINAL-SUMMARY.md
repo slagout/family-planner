@@ -8,14 +8,14 @@
 
 The **Family Planner** application now has a complete, production-ready deployment infrastructure with:
 
-- ✅ **Production Docker Compose Stack** - 12 services fully configured
+- ✅ **Production Docker Compose Stack** - 10 services fully configured
 - ✅ **Infrastructure as Code** - 4 automated setup scripts
 - ✅ **Configuration Management** - 7 configuration files
 - ✅ **CI/CD Pipeline** - GitHub Actions automation
 - ✅ **Comprehensive Documentation** - 63,000+ words across 10 guides
 - ✅ **Enhanced Backend** - Production health check endpoints
-- ✅ **High Availability** - MongoDB replica set, Redis caching, load balancing
-- ✅ **Security** - TLS/SSL, JWT auth, Keycloak OAuth, rate limiting
+- ✅ **High Availability** - PostgreSQL with persistent volumes, Redis caching, load balancing
+- ✅ **Security** - TLS/SSL, Keycloak OAuth 2.0 / OIDC, rate limiting
 - ✅ **Monitoring** - Prometheus + Grafana + Graylog
 - ✅ **Backup & Recovery** - Automated daily backups
 - ✅ **Blue-Green Deployment** - Zero-downtime updates
@@ -107,9 +107,8 @@ docker compose -f docker-compose.prod.yml up -d
 │  Docker Bridge Network (HA Stack)    │
 │                                      │
 │ ┌──────────────────────────────┐    │
-│ │ Data Layer (4 services)      │    │
-│ │ ├─ PostgreSQL (Primary DB)   │    │
-│ │ ├─ MongoDB RS (3 nodes)      │    │
+│ │ Data Layer (3 services)      │    │
+│ │ ├─ PostgreSQL (Immutable DB) │    │
 │ │ ├─ Redis (Cache)             │    │
 │ │ └─ Elasticsearch (Search)    │    │
 │ └──────────────────────────────┘    │
@@ -135,11 +134,10 @@ docker compose -f docker-compose.prod.yml up -d
 | Backend | 4000 | Express.js API |
 | Frontend | 80 | Nginx reverse proxy for SPA |
 
-### Data Layer (4)
+### Data Layer (3)
 | Service | Port | Purpose |
 |---------|------|---------|
-| PostgreSQL | 5432 | Primary database |
-| MongoDB | 27017-19 | Document store (3 node RS) |
+| PostgreSQL | 5432 | Immutable append-only database |
 | Redis | 6379 | Cache & sessions |
 | Elasticsearch | 9200 | Log indexing |
 
@@ -152,7 +150,7 @@ docker compose -f docker-compose.prod.yml up -d
 | Grafana | 3000 | Dashboards |
 | Graylog | 9000 | Centralized logging |
 
-**Total: 12 production services**
+**Total: 10 production services**
 
 ---
 
@@ -179,7 +177,7 @@ docker compose -f docker-compose.prod.yml up -d
 - Error tracking
 
 ### 🔄 High Availability
-- MongoDB replica set (3 nodes)
+- PostgreSQL with persistent volumes and daily pg_dump backups
 - Automatic failover
 - Health checks on all services
 - Automatic container restart

@@ -43,15 +43,6 @@ groups:
           summary: "PostgreSQL is down"
           description: "PostgreSQL exporter cannot connect to the database"
 
-      - alert: MongoDBDown
-        expr: up{job="mongodb"} == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "MongoDB is down"
-          description: "MongoDB exporter cannot connect to the database"
-
       # Redis health
       - alert: RedisDown
         expr: up{job="redis"} == 0

@@ -1,109 +1,10 @@
 version: '3.9'
 
 services:
-  # MongoDB Replica Set - Node 1
-  mongo1:
-    image: mongo:7.0
-    container_name: mongo1
-    restart: unless-stopped
-    networks:
-      - family-planner
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo1_data:/data/db
-      - mongo1_config:/data/configdb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-    command: 
-      - --replSet=rs0
-      - --bind_ip_all
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh -u ${MONGO_ROOT_USER:-admin} -p ${MONGO_ROOT_PASSWORD} localhost:27017/test --quiet || exit 1
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # MongoDB Replica Set - Node 2
-  mongo2:
-    image: mongo:7.0
-    container_name: mongo2
-    restart: unless-stopped
-    networks:
-      - family-planner
-    ports:
-      - "27018:27017"
-    volumes:
-      - mongo2_data:/data/db
-      - mongo2_config:/data/configdb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-    command:
-      - --replSet=rs0
-      - --bind_ip_all
-    depends_on:
-      - mongo1
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh -u ${MONGO_ROOT_USER:-admin} -p ${MONGO_ROOT_PASSWORD} localhost:27017/test --quiet || exit 1
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # MongoDB Replica Set - Node 3
-  mongo3:
-    image: mongo:7.0
-    container_name: mongo3
-    restart: unless-stopped
-    networks:
-      - family-planner
-    ports:
-      - "27019:27017"
-    volumes:
-      - mongo3_data:/data/db
-      - mongo3_config:/data/configdb
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-    command:
-      - --replSet=rs0
-      - --bind_ip_all
-    depends_on:
-      - mongo1
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh -u ${MONGO_ROOT_USER:-admin} -p ${MONGO_ROOT_PASSWORD} localhost:27017/test --quiet || exit 1
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # MongoDB Replica Set Initialization
-  mongo-init:
-    image: mongo:7.0
-    container_name: mongo-init
-    restart: "no"
-    networks:
-      - family-planner
-    depends_on:
-      - mongo1
-      - mongo2
-      - mongo3
-    command: >
-      mongosh --host mongo1:27017 -u ${MONGO_ROOT_USER:-admin} -p ${MONGO_ROOT_PASSWORD} <<EOF
-      rs.initiate({
-        _id: "rs0",
-        members: [
-          {_id: 0, host: "mongo1:27017", priority: 2},
-          {_id: 1, host: "mongo2:27017", priority: 1},
-          {_id: 2, host: "mongo3:27017", priority: 1}
-        ]
-      });
-      EOF
-
-  # PostgreSQL Database (kept for backward compatibility)
+  # PostgreSQL — sole database for all application data (immutable append-only schema)
   postgres:
     image: postgres:16-alpine
-    container_name: postgres
+    container_name: family-planner-db
     restart: unless-stopped
     networks:
       - family-planner
@@ -112,7 +13,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-fp_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fp_user} -d ${POSTGRES_DB:-family_planner}"]
       interval: 10s
@@ -177,25 +79,6 @@ services:
       - "traefik.http.routers.graylog.rule=Host(`${DOMAIN:-localhost}`) && PathPrefix(`/graylog`)"
       - "traefik.http.services.graylog.loadbalancer.server.port=9000"
 
-  # PostgreSQL Database (legacy)
-  db:
-    image: postgres:16-alpine
-    container_name: family-planner-db
-    restart: unless-stopped
-    networks:
-      - family-planner
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-family_planner}
-      POSTGRES_USER: ${POSTGRES_USER:-fp_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fp_user} -d ${POSTGRES_DB:-family_planner}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Express Backend
   backend:
     build:
@@ -206,19 +89,23 @@ services:
     networks:
       - family-planner
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 4000
-      PGHOST: db
+      PGHOST: postgres
       PGPORT: 5432
       PGDATABASE: ${POSTGRES_DB:-family_planner}
       PGUSER: ${POSTGRES_USER:-fp_user}
       PGPASSWORD: ${POSTGRES_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-family-planner}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-family-planner-backend}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-CHANGE_ME_IN_PROD}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://${DOMAIN:-localhost}}
       KROGER_CLIENT_ID: ${KROGER_CLIENT_ID:-}
       KROGER_CLIENT_SECRET: ${KROGER_CLIENT_SECRET:-}
       KROGER_REDIRECT_URI: ${KROGER_REDIRECT_URI:-https://${DOMAIN:-localhost}/api/kroger/callback}
@@ -269,13 +156,13 @@ services:
     networks:
       - family-planner
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://db:5432/keycloak
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-family_planner}
       KC_DB_USERNAME: ${POSTGRES_USER:-fp_user}
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
       KC_HOSTNAME: ${DOMAIN:-localhost}
@@ -382,21 +269,7 @@ networks:
 volumes:
   pgdata:
     driver: local
-  postgres_data:
-    driver: local
   redis_data:
-    driver: local
-  mongo1_data:
-    driver: local
-  mongo1_config:
-    driver: local
-  mongo2_data:
-    driver: local
-  mongo2_config:
-    driver: local
-  mongo3_data:
-    driver: local
-  mongo3_config:
     driver: local
   elasticsearch_data:
     driver: local

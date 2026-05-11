@@ -1,0 +1,57 @@
+{
+  "realm": "family-planner",
+  "enabled": true,
+  "displayName": "Family Planner",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 30,
+  "clients": [
+    {
+      "clientId": "family-planner-app",
+      "name": "Family Planner Application",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "CHANGE_ME_IN_PROD",
+      "redirectUris": [
+        "https://CHANGE_ME_DOMAIN/*",
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "https://CHANGE_ME_DOMAIN",
+        "http://localhost:3000"
+      ],
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["openid", "profile", "email", "roles"]
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "parent", "description": "Parent/guardian role with full management access" },
+      { "name": "child", "description": "Child role with limited access" },
+      { "name": "admin", "description": "Administrator role" }
+    ]
+  },
+  "groups": [
+    { "name": "Parents", "realmRoles": ["parent"] },
+    { "name": "Children", "realmRoles": ["child"] }
+  ],
+  "passwordPolicy": "length(12) and digits(1) and upperCase(1) and specialChars(1) and notUsername and passwordHistory(5)"
+}

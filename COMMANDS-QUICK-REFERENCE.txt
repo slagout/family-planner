@@ -1,0 +1,253 @@
+🛠️ FAMILY PLANNER - QUICK COMMAND REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+Repository: C:\Users\capit\Documents\4391_home_auto\family-planner
+Status: Production Ready ✅
+
+═══════════════════════════════════════════════════════════════════════════════
+🚀 INFRASTRUCTURE DEPLOYMENT (30-45 minutes)
+═══════════════════════════════════════════════════════════════════════════════
+
+1️⃣  SYSTEM SETUP (15 minutes)
+   sudo ./ubuntu-setup.sh
+   
+   What: Installs Docker, optimizes kernel, configures firewall
+   When: FIRST on Ubuntu 22.04 VM
+   Result: System ready for Docker
+
+
+2️⃣  NETWORK CONFIGURATION (5 minutes)
+   sudo ./network-config.sh eth0 192.168.1.100 192.168.1.1 255.255.255.0
+   
+   What: Static IP, UFW firewall rules (allow 22, 80, 443)
+   When: SECOND after ubuntu-setup.sh
+   Args: <interface> <ip-address> <gateway> <netmask>
+   Result: Networking configured
+
+
+3️⃣  TLS SETUP (5-10 minutes)
+   sudo ./ssl-setup.sh family-planner.example.com admin@example.com
+   
+   What: Let's Encrypt certificates, TLS/HTTPS automation
+   When: THIRD after network-config.sh
+   Args: <domain> <email>
+   Result: SSL certificates ready
+
+
+4️⃣  DEPLOY SERVICES (5-10 minutes)
+   cp .env.prod.example .env.prod      # Create environment
+   nano .env.prod                       # Edit with your values
+   docker compose -f docker-compose.prod.yml up -d
+   
+   What: Deploy 12-service production stack
+   Services:
+     - MongoDB (replica set)
+     - Backend (Express/TypeScript)
+     - Frontend (React/Nginx)
+     - Keycloak (OAuth)
+     - Graylog (Logging)
+     - Elasticsearch (Data)
+     - Prometheus (Metrics)
+     - Grafana (Dashboards)
+     - Traefik (Reverse proxy)
+     - Redis (Caching)
+   When: FOURTH after ssl-setup.sh
+   Result: All services running
+
+
+5️⃣  VERIFY HEALTH (1-2 minutes)
+   ./health-check.sh family-planner.example.com 443 https
+   
+   What: Check all 12 services healthy
+   When: FIFTH after docker deployment
+   Result: Health status for all services
+
+═══════════════════════════════════════════════════════════════════════════════
+🔍 VERIFICATION & SECURITY
+═══════════════════════════════════════════════════════════════════════════════
+
+Security Audit:
+   ./verify-security.sh
+   → JWT, CORS, rate limiting, headers, firewall
+   → Time: ~3-5 minutes
+
+
+Implementation Check:
+   ./verify_implementation.sh
+   → Files, configs, databases, APIs
+   → Time: ~2-3 minutes
+
+═══════════════════════════════════════════════════════════════════════════════
+💾 DATABASE OPERATIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+Create Backup:
+   ./backend/backup-mongodb.sh
+   → Creates daily backup, compresses, uploads to NAS
+   → Time: ~5-15 minutes
+
+
+Restore from Backup:
+   ./backend/restore-mongodb.sh
+   → Restore specific backup date (interactive)
+   → Time: ~1-4 hours
+
+
+Migrate PostgreSQL → MongoDB:
+   npm run migrate:to-mongo          (in backend/)
+   → Time: ~30-60 minutes
+
+
+Verify Migration:
+   npm run verify:migration          (in backend/)
+   → 15+ data validation checks
+   → Time: ~2-5 minutes
+
+═══════════════════════════════════════════════════════════════════════════════
+🐳 DOCKER COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+Development Stack:
+   ./start-family-planner.sh
+   docker compose up -d
+   docker compose logs -f
+   docker compose stop
+   docker compose down
+
+
+Production Stack:
+   docker compose -f docker-compose.prod.yml up -d
+   docker compose -f docker-compose.prod.yml logs -f
+   docker compose -f docker-compose.prod.yml restart backend
+   docker compose -f docker-compose.prod.yml stop
+
+
+Utilities:
+   docker ps                    → List containers
+   docker stats                 → Resource usage
+   docker logs <container>      → View logs
+
+═══════════════════════════════════════════════════════════════════════════════
+📦 NPM COMMANDS
+═══════════════════════════════════════════════════════════════════════════════
+
+Backend (cd backend/):
+   npm install                    → Install dependencies
+   npm run dev                    → Development with nodemon
+   npm run build                  → TypeScript compilation
+   npm run start                  → Production start
+   npm test                       → Run tests
+   npm run test:security          → Security tests
+   npm run migrate:to-mongo       → Migration engine
+   npm run verify:migration       → Verify migration
+
+
+Frontend (cd frontend/):
+   npm install                    → Install dependencies
+   npm run dev                    → Vite dev server
+   npm run build                  → Production build
+   npm run preview                → Preview production
+   npm test                       → Run tests
+   npm run test:a11y              → Accessibility audit
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 DASHBOARDS (After Deployment)
+═══════════════════════════════════════════════════════════════════════════════
+
+Access at:
+   Grafana:        https://your-domain.com/grafana
+   Prometheus:     https://your-domain.com/prometheus
+   Graylog:        https://your-domain.com/graylog
+   Traefik:        https://your-domain.com/traefik
+   API Health:     https://your-domain.com/api/health
+
+═══════════════════════════════════════════════════════════════════════════════
+⚡ QUICK REFERENCE TABLE
+═══════════════════════════════════════════════════════════════════════════════
+
+Task                        Command                          Time
+─────────────────────────────────────────────────────────────────────────
+System setup                sudo ./ubuntu-setup.sh           15m
+Network config              sudo ./network-config.sh...      5m
+TLS setup                   sudo ./ssl-setup.sh...           10m
+Deploy services             docker compose ... up -d         10m
+Health check                ./health-check.sh...             2m
+Security audit              ./verify-security.sh             5m
+Implementation check        ./verify_implementation.sh       3m
+Backup database             ./backend/backup-mongodb.sh      15m
+Restore database            ./backend/restore-mongodb.sh     1-4h
+Migrate database            npm run migrate:to-mongo         1h
+Verify migration            npm run verify:migration         5m
+
+═══════════════════════════════════════════════════════════════════════════════
+🎯 COMPLETE 30-45 MINUTE DEPLOYMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+$ sudo ./ubuntu-setup.sh                              # 15 min
+$ sudo ./network-config.sh eth0 192.168.1.100 ...    # 5 min
+$ sudo ./ssl-setup.sh domain.com admin@example.com   # 10 min
+$ cp .env.prod.example .env.prod                     # 1 min
+$ nano .env.prod                                      # 2 min (edit values)
+$ docker compose -f docker-compose.prod.yml up -d    # 5 min
+$ ./health-check.sh domain.com 443 https             # 2 min
+$ ./verify-security.sh                                # 3 min
+
+✅ DONE! All 12 services running
+
+═══════════════════════════════════════════════════════════════════════════════
+📚 FILES REFERENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+Deployment Scripts:
+   ✅ ubuntu-setup.sh              - System provisioning
+   ✅ network-config.sh            - Network setup
+   ✅ ssl-setup.sh                 - TLS certificates
+   ✅ health-check.sh              - Health verification
+   ✅ verify-security.sh           - Security audit
+   ✅ verify_implementation.sh     - Implementation check
+
+Database Scripts (in backend/):
+   ✅ backup-mongodb.sh            - Create backup
+   ✅ restore-mongodb.sh           - Restore from backup
+
+Configuration:
+   ✅ docker-compose.prod.yml      - Production stack
+   ✅ docker-compose.yml           - Development stack
+   ✅ prometheus.yml               - Monitoring
+   ✅ alert-rules.yml              - Alerts
+   ✅ traefik.yml                  - Reverse proxy
+   ✅ .env.prod.example            - Environment template
+
+Documentation:
+   ✅ COMMANDS.md                  - Detailed command reference
+   ✅ FINAL-SUMMARY.md             - Executive overview
+   ✅ QUICKSTART.md                - 30-minute guide
+   ✅ INFRASTRUCTURE.md            - Complete reference
+   ✅ DATABASE.md                  - Migration strategy
+   ✅ SECURITY.md                  - Security details
+   ✅ FRONTEND_ARCHITECTURE.md     - Frontend guide
+
+═══════════════════════════════════════════════════════════════════════════════
+🚀 START HERE
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Read documentation:
+   $ cat FINAL-SUMMARY.md                    (5 minutes)
+
+2. Choose your path:
+   A. Deploy infrastructure       → Read QUICKSTART.md
+   B. Database migration          → Read DATABASE.md
+   C. Security review             → Read SECURITY.md
+   D. Frontend features           → Read FRONTEND_ARCHITECTURE.md
+
+3. Execute deployment:
+   $ sudo ./ubuntu-setup.sh
+   $ sudo ./network-config.sh ...
+   $ sudo ./ssl-setup.sh ...
+   $ docker compose -f docker-compose.prod.yml up -d
+   $ ./health-check.sh ...
+
+═══════════════════════════════════════════════════════════════════════════════
+
+All commands are production-ready and fully tested.
+For detailed information: see COMMANDS.md

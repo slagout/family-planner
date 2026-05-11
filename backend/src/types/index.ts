@@ -8,6 +8,9 @@ export interface User {
 export interface AuthPayload {
   userId: string;
   email: string;
+  displayName?: string | null;
+  roles?: string[];
+  keycloakSubject?: string;
 }
 
 export interface Recipe {
