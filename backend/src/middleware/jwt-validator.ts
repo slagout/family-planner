@@ -47,7 +47,7 @@ export function verifyToken(token: string): AuthPayload {
 
 export function signToken(payload: AuthPayload, expiresIn: string = '24h'): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, {
-    expiresIn,
+    expiresIn: expiresIn as any,
     algorithm: 'HS256',
     audience: 'family-planner',
   });
@@ -55,7 +55,7 @@ export function signToken(payload: AuthPayload, expiresIn: string = '24h'): stri
 
 export function createRefreshToken(payload: AuthPayload): string {
   return jwt.sign(payload, process.env.JWT_SECRET!, {
-    expiresIn: '30d',
+    expiresIn: '30d' as any,
     algorithm: 'HS256',
     audience: 'family-planner-refresh',
   });
