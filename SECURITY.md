@@ -1,3 +1,44 @@
+## 16. Known Build-Time Dependency Vulnerabilities
+
+> Last reviewed: 2026-05-15  
+> Status: **Accepted risk — build-time only, not exposed in the runtime API**
+
+The following high-severity `npm audit` findings cannot be auto-fixed without
+breaking changes to the current toolchain. They are **only reachable through
+developer tooling** (test runners, build scripts) and are **not bundled into
+the production Docker image** (`dist/`).
+
+| Package | CVE / Advisory | Used by | Runtime risk |
+|---------|---------------|---------|-------------|
+| `tar@6.2.1` | Path traversal via malicious archive | `node-gyp`, `npm pack` | ❌ None — build-time only |
+| `glob@7.2.3` | ReDoS (polynomial backtracking) | `rimraf@3`, test tooling | ❌ None — build-time only |
+| `rimraf@3.0.2` | Indirect via glob@7 | `mocha`, `jest` cleanup | ❌ None — build-time only |
+
+### Mitigation
+
+```bash
+# Attempt safe auto-fix (run in backend/):
+npm audit fix
+
+# If the above breaks peer deps, accept the residual risk with:
+npm audit fix --force   # review diff carefully before committing
+```
+
+If `npm audit fix` cannot resolve these automatically, the risk is confined to
+the **CI/CD pipeline and developer workstations**. Production containers built
+from the `dist/` output are unaffected because:
+- `node_modules` is not copied to the final Docker image stage.
+- The vulnerable code paths are only invoked during `npm install` / test runs.
+
+### Action items
+
+- [ ] Pin `glob` to `>=9` and `rimraf` to `>=4` once test-runner compatibility
+      is confirmed (track in a follow-up ticket).
+- [ ] Enable Dependabot or Renovate to automate future updates.
+- [ ] Re-run `npm audit` after every dependency upgrade.
+
+---
+
 # Security Hardening Documentation
 
 ## Overview
@@ -267,6 +308,6 @@ npm run test:security     # Security audit
 ## References
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [GDPR Compliance Checklist](https://gdpr.eu/checklist/)
-- [COPPA Requirements](https://www.ftc.gov/business-guidance/privacy-security/childrens-privacy)
+- [COPPA Requirements](https://www.ftc.gov/business-guidance/childrens-privacy)
 - [Express.js Security Best Practices](https://expressjs.com/en/advanced/best-practice-security.html)
 - [Node.js Security](https://nodejs.org/en/docs/guides/security/)
