@@ -28,7 +28,7 @@ export function useOfflineMode(apiBaseUrl?: string): OfflineState & {
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [pendingOperations, setPendingOperations] = useState(0);
-  const syncTimeoutRef = useRef<NodeJS.Timeout>();
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Handle online/offline events
   useEffect(() => {

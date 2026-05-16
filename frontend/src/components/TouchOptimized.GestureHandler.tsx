@@ -59,7 +59,7 @@ export const GestureHandler = React.forwardRef<
     ref
   ) => {
     const touchStartRef = useRef<TouchData | null>(null);
-    const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastTouchRef = useRef<TouchData | null>(null);
     const [isLongPress, setIsLongPress] = useState(false);
 

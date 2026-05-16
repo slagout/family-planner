@@ -15,7 +15,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5432:5432"
+      - "192.168.200.45:5432:5432"
 
   backend:
     build:
@@ -33,12 +33,14 @@ services:
       PGDATABASE: ${POSTGRES_DB:-family_planner}
       PGUSER: ${POSTGRES_USER:-fp_user}
       PGPASSWORD: ${POSTGRES_PASSWORD}
+      PG_SSL: "false"
       JWT_SECRET: ${JWT_SECRET}
       KROGER_CLIENT_ID: ${KROGER_CLIENT_ID:-}
       KROGER_CLIENT_SECRET: ${KROGER_CLIENT_SECRET:-}
       KROGER_REDIRECT_URI: ${KROGER_REDIRECT_URI:-http://localhost:4000/api/kroger/callback}
+      KROGER_TOKEN_ENCRYPTION_KEY: ${KROGER_TOKEN_ENCRYPTION_KEY:-}
     ports:
-      - "4000:4000"
+      - "192.168.200.45:4000:4000"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:4000/api/health || exit 1"]
       interval: 10s
@@ -54,7 +56,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "3000:80"
+      - "192.168.200.45:3000:80"
 
 volumes:
   pgdata:
