@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import fs from 'fs';
 import { pool } from './db';
@@ -31,7 +32,7 @@ async function runMigrations(): Promise<void> {
     }
 
     const files = fs.readdirSync(migrationsDir)
-      .filter((f) => f.endsWith('.sql'))
+      .filter((f) => /^\d{3}_/.test(f) && f.endsWith('.sql'))
       .sort();
 
     for (const file of files) {
@@ -84,6 +85,9 @@ async function main(): Promise<void> {
   // Body parsing with size limits
   app.use(express.json({ limit: '10kb' }));
   app.use(express.urlencoded({ limit: '10kb' }));
+
+  // Cookie parsing (required for Kroger OAuth state cookie)
+  app.use(cookieParser());
 
   // Apply security headers
   app.use(securityHeaders);
