@@ -1,0 +1,187 @@
+# =============================================================================
+# Family Planner — Backend Deploy (Scalable)
+# =============================================================================
+# Deployment modes:
+#
+#   Single-node (docker compose):       docker compose up -d
+#   Multi-node Swarm (recommended):     see swarm-scale.sh
+#
+# Scaling the API:
+#   Single node:    docker compose up -d --scale fp-api=3
+#   Docker Swarm:   docker service scale fp_fp-api=3
+#
+# LLM service (optional):
+#   docker compose --profile llm up -d
+# =============================================================================
+version: '3.9'
+
+networks:
+  fp-backend:
+    driver: overlay          # overlay for Swarm; bridge auto-fallback in compose
+    attachable: true
+
+volumes:
+  pgdata:
+  traefik-certs:
+  llm-models:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Traefik — edge router & load balancer
+  # Routes incoming HTTPS to one of N fp-api replicas (round-robin).
+  # ---------------------------------------------------------------------------
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.swarmMode=true"
+      - "--providers.docker.exposedByDefault=false"
+      - "--providers.docker.network=fp-backend"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--api.dashboard=false"
+      - "--log.level=INFO"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certs:/letsencrypt
+    networks:
+      - fp-backend
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager   # Traefik must run on a Swarm manager node
+      restart_policy:
+        condition: on-failure
+
+  # ---------------------------------------------------------------------------
+  # API — Node.js backend (horizontally scalable)
+  # ---------------------------------------------------------------------------
+  fp-api:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    image: family-planner-api:latest
+    networks:
+      - fp-backend
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      PGHOST: fp-db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-family_planner}
+      PGUSER: ${POSTGRES_USER:-fp_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PG_SSL: "false"
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://your-frontend-domain.com}
+      KROGER_CLIENT_ID: ${KROGER_CLIENT_ID:-}
+      KROGER_CLIENT_SECRET: ${KROGER_CLIENT_SECRET:-}
+      KROGER_REDIRECT_URI: ${KROGER_REDIRECT_URI:-}
+      KROGER_TOKEN_ENCRYPTION_KEY: ${KROGER_TOKEN_ENCRYPTION_KEY:-}
+      LLM_API_URL: ${LLM_API_URL:-http://fp-llm:11434}
+    depends_on:
+      fp-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fp-api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.fp-api.entrypoints=websecure"
+      - "traefik.http.routers.fp-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fp-api.loadbalancer.server.port=4000"
+    deploy:
+      replicas: 2                # start with 2; scale up as needed
+      update_config:
+        parallelism: 1           # replace one replica at a time (zero-downtime)
+        delay: 10s
+        failure_action: rollback
+        order: start-first       # new container starts before old one is removed
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — persistent database (single replica, pinned to manager node)
+  # ---------------------------------------------------------------------------
+  fp-db:
+    image: postgres:16-alpine
+    networks:
+      - fp-backend
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-family_planner}
+      POSTGRES_USER: ${POSTGRES_USER:-fp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fp_user} -d ${POSTGRES_DB:-family_planner}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager   # pin DB to manager so named volume is accessible
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          memory: 1G
+
+  # ---------------------------------------------------------------------------
+  # LLM Service — Ollama (opt-in, --profile llm)
+  # docker compose --profile llm up -d
+  # Pull model: docker exec <container> ollama pull llama3
+  # ---------------------------------------------------------------------------
+  fp-llm:
+    image: ollama/ollama:latest
+    profiles:
+      - llm
+    networks:
+      - fp-backend
+    volumes:
+      - llm-models:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 8G              # increase for larger models (llama3:70b needs ~40G)
+        reservations:
+          memory: 4G
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
