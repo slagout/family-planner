@@ -1,0 +1,86 @@
+# =============================================================================
+# Family Planner — Full Stack (LOCAL DEVELOPMENT ONLY)
+# =============================================================================
+# Wires frontend + backend + database together for local development.
+# Do NOT use this file in production.
+# For production: use deploy/frontend/ and deploy/backend/ separately.
+#
+# Quick start:
+#   cp .env.example .env
+#   docker compose up -d
+#   open http://localhost:3000
+#   curl http://localhost:4000/api/health
+# =============================================================================
+version: '3.9'
+
+networks:
+  fp-local:
+
+volumes:
+  pgdata-local:
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    networks:
+      - fp-local
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-family_planner}
+      POSTGRES_USER: ${POSTGRES_USER:-fp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_me}
+    volumes:
+      - pgdata-local:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"              # exposed for local DB tools (TablePlus, pgAdmin, etc.)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fp_user}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ../..             # repo root
+      dockerfile: backend/Dockerfile
+    networks:
+      - fp-local
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-family_planner}
+      PGUSER: ${POSTGRES_USER:-fp_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_me}
+      PG_SSL: "false"
+      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret_min_32_chars_long_placeholder}
+      CORS_ORIGINS: http://localhost:3000,http://frontend
+      KROGER_CLIENT_ID: ${KROGER_CLIENT_ID:-}
+      KROGER_CLIENT_SECRET: ${KROGER_CLIENT_SECRET:-}
+      KROGER_REDIRECT_URI: http://localhost:4000/api/kroger/callback
+      KROGER_TOKEN_ENCRYPTION_KEY: ${KROGER_TOKEN_ENCRYPTION_KEY:-}
+    ports:
+      - "4000:4000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ../..             # repo root
+      dockerfile: deploy/frontend/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:4000
+    networks:
+      - fp-local
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:80"
