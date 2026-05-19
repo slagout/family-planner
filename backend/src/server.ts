@@ -156,7 +156,20 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((err) => {
-  console.error('[Fatal] Failed to start server:', err);
+async function mainWithRetry(retries = 5, delayMs = 3000): Promise<void> {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      await main();
+      return;
+    } catch (err) {
+      if (i === retries) throw err;
+      console.error(`[Startup] Attempt ${i}/${retries} failed, retrying in ${delayMs}ms...`, (err as Error).message);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
+mainWithRetry().catch((err) => {
+  console.error('[Fatal] Failed to start server after retries:', err);
   process.exit(1);
 });

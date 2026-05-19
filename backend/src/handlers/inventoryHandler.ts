@@ -206,8 +206,9 @@ export async function lookupBarcode(req: Request, res: Response): Promise<void> 
   }
   try {
     const token = await krogerService.getAccessToken();
+    const krogerApiBase = process.env.KROGER_API_BASE_URL || 'https://api-ce.kroger.com/v1';
     const response = await axios.get(
-      `https://api.kroger.com/v1/products?filter.term=${encodeURIComponent(upc)}&filter.limit=1`,
+      `${krogerApiBase}/products?filter.term=${encodeURIComponent(upc)}&filter.limit=1`,
       { headers: { Authorization: `Bearer ${token}` }, timeout: 5000 },
     );
     const product = response.data?.data?.[0];

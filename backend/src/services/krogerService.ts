@@ -1,56 +1,37 @@
+/**
+ * krogerService.ts — Legacy menu-planner facade over the Kroger integrations.
+ *
+ * Context rules (per Kroger OpenAPI specs):
+ *  - Products API (GET /v1/products): ClientContext — client_credentials, scope: product.compact
+ *  - Cart API (PUT /v1/cart/add):     CustomerContext — authorization_code, scope: cart.basic:write
+ *
+ * This service uses ClientContext (client_credentials) for product resolution only.
+ * Cart operations that require a specific user's CustomerContext token are handled
+ * separately via krogerAuth.getValidTokens(userId) in krogerCart.addToCart().
+ */
 import axios from 'axios';
 import { MissingIngredient } from '../types';
+import { krogerAuth } from '../integrations/kroger/kroger-auth';
 
-interface KrogerToken {
-  accessToken: string;
-  expiresAt: number;
-}
+const KROGER_API = process.env.KROGER_API_BASE_URL || 'https://api-ce.kroger.com/v1';
 
 interface CartResult {
   cartId: string;
   unmatchedIngredients: string[];
 }
 
-let cachedToken: KrogerToken | null = null;
-
 /**
- * Get a client-credentials access token.
- * Suitable for read-only product search (product.compact scope).
- * NOT suitable for cart writes — use krogerCart.addToCart() with user tokens instead.
+ * Searches for a product UPC using ClientContext (product.compact scope).
  */
-export async function getAccessToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
-    return cachedToken.accessToken;
-  }
-  const clientId = process.env.KROGER_CLIENT_ID;
-  const clientSecret = process.env.KROGER_CLIENT_SECRET;
-  if (!clientId || !clientSecret) throw new Error('KROGER_CLIENT_ID / KROGER_CLIENT_SECRET not set');
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  const response = await axios.post(
-    'https://api.kroger.com/v1/connect/oauth2/token',
-    // product.compact is read-only and available via client credentials.
-    // cart.basic:write is intentionally excluded — it requires user OAuth tokens.
-    'grant_type=client_credentials&scope=product.compact',
-    { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
-  );
-  cachedToken = {
-    accessToken: response.data.access_token,
-    expiresAt: Date.now() + response.data.expires_in * 1000,
-  };
-  return cachedToken.accessToken;
-}
-
-/**
- * Search for a product by name and return its UPC string.
- * Uses the client-credentials token (read-only product search).
- */
-export async function searchProduct(accessToken: string, term: string): Promise<string | null> {
+async function searchProductUpc(accessToken: string, term: string): Promise<string | null> {
   try {
-    const response = await axios.get(
-      `https://api.kroger.com/v1/products?filter.term=${encodeURIComponent(term)}&filter.limit=1`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    const response = await axios.get(`${KROGER_API}/products`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      params: {
+        'filter.term': term,
+        'filter.limit': 1,
+      },
+    });
     const product = response.data?.data?.[0];
     return product?.items?.[0]?.itemId || product?.productId || null;
   } catch {
@@ -59,23 +40,34 @@ export async function searchProduct(accessToken: string, term: string): Promise<
 }
 
 /**
- * @deprecated Use krogerCart.addToCart() + the standalone getAccessToken/searchProduct
- * helpers instead. This function uses client_credentials which cannot write to carts.
+ * Resolves ingredient UPCs via ClientContext, then adds items to the Kroger cart
+ * using the provided CustomerContext access token (Authorization Code, cart.basic:write).
+ *
+ * @param ingredients   List of missing ingredients with optional krogerUpc hints.
+ * @param userAccessToken  CustomerContext Bearer token for PUT /v1/cart/add.
  */
-async function createCartWithItems(ingredients: MissingIngredient[]): Promise<CartResult> {
-  const accessToken = await getAccessToken();
+async function createCartWithItems(
+  ingredients: MissingIngredient[],
+  userAccessToken?: string
+): Promise<CartResult> {
+  // ClientContext token for product search (product.compact only)
+  const clientToken = await krogerAuth.getClientCredentialsToken();
   const unmatchedIngredients: string[] = [];
 
-  const resolvedItems: Array<{ upc: string; quantity: number }> = [];
+  const resolvedItems: Array<{ upc: string; quantity: number; modality: 'PICKUP' | 'DELIVERY' }> = [];
   for (const ing of ingredients) {
     try {
       let upc = ing.krogerUpc;
       if (!upc) {
-        const found = await searchProduct(accessToken, ing.name);
+        const found = await searchProductUpc(clientToken, ing.name);
         upc = found ?? undefined;
       }
       if (upc) {
-        resolvedItems.push({ upc, quantity: Math.max(1, Math.ceil(ing.quantity)) });
+        resolvedItems.push({
+          upc,
+          quantity: Math.max(1, Math.ceil(ing.quantity)),
+          modality: 'PICKUP',
+        });
       } else {
         unmatchedIngredients.push(ing.name);
       }
@@ -84,14 +76,31 @@ async function createCartWithItems(ingredients: MissingIngredient[]): Promise<Ca
     }
   }
 
+  if (resolvedItems.length === 0) {
+    return { cartId: '', unmatchedIngredients };
+  }
+
+  if (!userAccessToken) {
+    throw new Error('A CustomerContext access token (cart.basic:write) is required to add items to cart.');
+  }
+
+  // CustomerContext: PUT /v1/cart/add (cart.basic:write)
   const response = await axios.put(
-    'https://api.kroger.com/v1/cart/add',
+    `${KROGER_API}/cart/add`,
     { items: resolvedItems },
-    { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } }
+    {
+      headers: {
+        Authorization: `Bearer ${userAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+    }
   );
 
   const cartId: string = response.data?.id || response.data?.cartId || `cart-${Date.now()}`;
   return { cartId, unmatchedIngredients };
 }
 
-export const krogerService = { createCartWithItems, getAccessToken, searchProduct };
+export const krogerService = {
+  createCartWithItems,
+  getAccessToken: () => krogerAuth.getClientCredentialsToken(),
+};

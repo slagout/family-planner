@@ -305,6 +305,25 @@ npm run test:security     # Security audit
 - Dependency security review
 - Update security documentation
 
+## 16. Dependency Vulnerability Status
+
+### Audit Date: 2026-05-16
+
+| Package | Previous Version | Vulnerability | Status | Resolution |
+|---|---|---|---|---|
+| `bcrypt` | 5.1.1 | Transitive `tar <=7.5.10` path traversal (GHSA-34x7-hfp2-rc4v, GHSA-8qq5-rm4j-mr97, GHSA-83g3-92jg-28cx, GHSA-qffp-2rhf-9h96, GHSA-9ppj-qmqm-q256, GHSA-r6q2-hw4h-h46w) via `@mapbox/node-pre-gyp` | ✅ **RESOLVED** | Upgraded `bcrypt` to `6.0.0` — eliminates `node-pre-gyp` + `tar` dependency chain |
+| `glob` | 7.2.3 | Previously flagged; no longer in dependency tree | ✅ **N/A** | Not present in current `package-lock.json` |
+| `rimraf` | 3.0.2 | Previously flagged; no longer in dependency tree | ✅ **N/A** | Not present in current `package-lock.json` |
+
+### Current Status
+```
+npm audit: found 0 vulnerabilities
+```
+
+### Production Build Verification
+The `Dockerfile` runtime stage uses `npm ci --omit=dev` — bcrypt and all runtime deps are production-clean.
+`tar`, `glob`, and `rimraf` are build/dev toolchain packages and are **not bundled** in the Docker runtime image (confirmed via `--omit=dev` flag in Dockerfile runtime stage).
+
 ## References
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [GDPR Compliance Checklist](https://gdpr.eu/checklist/)

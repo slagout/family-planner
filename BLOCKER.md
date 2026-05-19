@@ -4,15 +4,17 @@
 
 ---
 
-## BLOCKER-001 — Kroger Token Encryption Not Yet Implemented
-**Status**: OPEN
+## ✅ RESOLVED — BLOCKER-001 — Kroger Token Encryption
+**Status**: RESOLVED (2026-05-16)
 **Phase**: Phase 5 (Kroger Integration)
-**Description**: Kroger OAuth tokens are stored in plaintext in the `kroger_tokens` PostgreSQL table. AES-256-GCM encryption must be applied before production launch.
-**Required Action**:
-1. Provision an encryption key (32 bytes, stored in `ENCRYPTION_KEY` env var or a secrets manager).
-2. Implement encrypt/decrypt functions in `backend/src/utils/encryption.ts`.
-3. Apply encryption in `krogerAuth.saveTokens()` and decryption in `krogerAuth.getValidTokens()`.
-**Priority**: HIGH (security risk if database is compromised).
+**Resolution**:
+- Created `backend/src/utils/encryption.ts` — AES-256-GCM encrypt/decrypt using Node.js `crypto` module.
+- `krogerAuth.saveTokens()` now encrypts `access_token` and `refresh_token` before INSERT/UPDATE.
+- `krogerAuth.getValidTokens()` decrypts tokens after SELECT, before returning to callers.
+- Encryption key sourced from `KROGER_TOKEN_ENCRYPTION_KEY` env var (32 bytes / 64 hex chars).
+- Generate key: `openssl rand -hex 32` — add to `.env` and Docker Compose secrets.
+- Ciphertext format: `base64(IV[12] || AuthTag[16] || Ciphertext)` — tamper-evident via GCM auth tag.
+- 5 encryption unit tests covering: round-trip, random IV, missing key, wrong-length key, tampered ciphertext.
 
 ## BLOCKER-002 — JWK-to-PEM Inline Implementation May Need Hardening
 **Status**: OPEN (Low Priority)
