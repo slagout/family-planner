@@ -13,16 +13,25 @@ interface CartResult {
 
 let cachedToken: KrogerToken | null = null;
 
-async function getAccessToken(): Promise<string> {
+/**
+ * Get a client-credentials access token.
+ * Suitable for read-only product search (product.compact scope).
+ * NOT suitable for cart writes — use krogerCart.addToCart() with user tokens instead.
+ */
+export async function getAccessToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
     return cachedToken.accessToken;
   }
-  const clientId = process.env.KROGER_CLIENT_ID!;
-  const clientSecret = process.env.KROGER_CLIENT_SECRET!;
+  const clientId = process.env.KROGER_CLIENT_ID;
+  const clientSecret = process.env.KROGER_CLIENT_SECRET;
+  if (!clientId || !clientSecret) throw new Error('KROGER_CLIENT_ID / KROGER_CLIENT_SECRET not set');
+
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
   const response = await axios.post(
     'https://api.kroger.com/v1/connect/oauth2/token',
-    'grant_type=client_credentials&scope=cart.basic:write product.compact',
+    // product.compact is read-only and available via client credentials.
+    // cart.basic:write is intentionally excluded — it requires user OAuth tokens.
+    'grant_type=client_credentials&scope=product.compact',
     { headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'application/x-www-form-urlencoded' } }
   );
   cachedToken = {
@@ -32,7 +41,11 @@ async function getAccessToken(): Promise<string> {
   return cachedToken.accessToken;
 }
 
-async function searchProduct(accessToken: string, term: string): Promise<string | null> {
+/**
+ * Search for a product by name and return its UPC string.
+ * Uses the client-credentials token (read-only product search).
+ */
+export async function searchProduct(accessToken: string, term: string): Promise<string | null> {
   try {
     const response = await axios.get(
       `https://api.kroger.com/v1/products?filter.term=${encodeURIComponent(term)}&filter.limit=1`,
@@ -45,11 +58,14 @@ async function searchProduct(accessToken: string, term: string): Promise<string 
   }
 }
 
+/**
+ * @deprecated Use krogerCart.addToCart() + the standalone getAccessToken/searchProduct
+ * helpers instead. This function uses client_credentials which cannot write to carts.
+ */
 async function createCartWithItems(ingredients: MissingIngredient[]): Promise<CartResult> {
   const accessToken = await getAccessToken();
   const unmatchedIngredients: string[] = [];
 
-  // Resolve UPCs for all ingredients
   const resolvedItems: Array<{ upc: string; quantity: number }> = [];
   for (const ing of ingredients) {
     try {
@@ -68,7 +84,6 @@ async function createCartWithItems(ingredients: MissingIngredient[]): Promise<Ca
     }
   }
 
-  // Add items to cart (PUT creates/updates the cart)
   const response = await axios.put(
     'https://api.kroger.com/v1/cart/add',
     { items: resolvedItems },
@@ -79,4 +94,4 @@ async function createCartWithItems(ingredients: MissingIngredient[]): Promise<Ca
   return { cartId, unmatchedIngredients };
 }
 
-export const krogerService = { createCartWithItems, getAccessToken };
+export const krogerService = { createCartWithItems, getAccessToken, searchProduct };

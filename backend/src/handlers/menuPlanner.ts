@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
-import { krogerService } from '../services/krogerService';
+import { getAccessToken, searchProduct } from '../services/krogerService';
+import { krogerAuth } from '../integrations/kroger/kroger-auth';
+import { krogerCart } from '../integrations/kroger/kroger-cart';
 import { MissingIngredient, MealPlanResponse } from '../types';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -116,12 +118,42 @@ export async function planWeek(req: Request, res: Response): Promise<void> {
       } else if (missingIngredients.length === 0) {
         krogerMessage = 'No missing ingredients — cart not created';
       } else {
-        try {
-          const result = await krogerService.createCartWithItems(missingIngredients);
-          krogerCartId = result.cartId;
-          krogerUnmatchedItems = result.unmatchedIngredients;
-        } catch (err: any) {
-          krogerMessage = `Kroger cart creation failed: ${err.message}`;
+        // Check the user has linked their Kroger account.
+        // cart.basic:write requires a user-delegated OAuth token; client_credentials
+        // tokens are only valid for read-only product searches.
+        const userTokens = await krogerAuth.getValidTokens(userId);
+        if (!userTokens) {
+          krogerMessage = 'Please link your Kroger account first — visit the Kroger page in the app';
+        } else {
+          try {
+            // 1. Search for UPCs using client-credentials token (product read is OK)
+            const appToken = await getAccessToken();
+            const resolvedItems: Array<{ upc: string; quantity: number }> = [];
+            krogerUnmatchedItems = [];
+
+            for (const ing of missingIngredients) {
+              let upc = ing.krogerUpc;
+              if (!upc) {
+                const found = await searchProduct(appToken, ing.name);
+                upc = found ?? undefined;
+              }
+              if (upc) {
+                resolvedItems.push({ upc, quantity: Math.max(1, Math.ceil(ing.quantity)) });
+              } else {
+                krogerUnmatchedItems.push(ing.name);
+              }
+            }
+
+            // 2. Add to cart using the user's OAuth token
+            if (resolvedItems.length > 0) {
+              await krogerCart.addToCart(userId, resolvedItems);
+              krogerCartId = `cart-${Date.now()}`;
+            } else {
+              krogerMessage = 'No products matched in Kroger catalog — cart not created';
+            }
+          } catch (err: any) {
+            krogerMessage = `Kroger cart creation failed: ${err.message}`;
+          }
         }
       }
     }

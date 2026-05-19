@@ -22,8 +22,29 @@ setInterval(() => {
 }, 60_000).unref();
 
 // ---------------------------------------------------------------------------
-// GET /api/kroger/authorize
-// Initiates the Kroger OAuth2 flow. Requires a valid JWT session.
+// GET /api/kroger/authorize-url
+// Returns the Kroger OAuth URL as JSON { url } so the frontend can fetch
+// it via axios (which sends the JWT header) then redirect the browser.
+// This avoids the 401 that a plain browser navigation would cause because
+// browsers do not send Authorization headers on href redirects.
+// ---------------------------------------------------------------------------
+krogerRouter.get('/authorize-url', requireAuth, (req: Request, res: Response): void => {
+  const state = crypto.randomBytes(16).toString('hex');
+  pendingStates.set(state, { userId: req.user!.userId, expiresAt: Date.now() + STATE_TTL_MS });
+  try {
+    const url = krogerAuth.getAuthorizationUrl(state);
+    res.json({ url });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Kroger OAuth not configured';
+    console.error('[Kroger] authorize-url error:', message);
+    res.status(500).json({ error: message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/kroger/authorize  (legacy — kept for backward-compat)
+// Requires JWT via Authorization header. Only works when called via fetch/
+// axios, NOT via browser href navigation.
 // ---------------------------------------------------------------------------
 krogerRouter.get('/authorize', requireAuth, (req: Request, res: Response): void => {
   const state = crypto.randomBytes(16).toString('hex');
