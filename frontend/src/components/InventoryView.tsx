@@ -8,10 +8,10 @@ import BarcodeScanner from './BarcodeScanner';
 import type { BarcodeResult } from '../services/inventoryApi';
 
 const SECTIONS: { key: Section; label: string; icon: string }[] = [
-  { key: 'pantry',       label: 'Pantry',      icon: '🥫' },
-  { key: 'freezer',      label: 'Freezer',     icon: '❄️' },
-  { key: 'refrigerator', label: 'Refrigerator',icon: '🥗' },
-  { key: 'bulk',         label: 'Bulk Cooking',icon: '🍳' },
+  { key: 'pantry',       label: 'Pantry',       icon: '🥫' },
+  { key: 'freezer',      label: 'Freezer',      icon: '❄️' },
+  { key: 'refrigerator', label: 'Refrigerator', icon: '🥗' },
+  { key: 'bulk',         label: 'Bulk Cooking', icon: '🍳' },
 ];
 
 const EMPTY_FORM: Partial<InventoryItem> = {
@@ -19,6 +19,28 @@ const EMPTY_FORM: Partial<InventoryItem> = {
   freezer_bin: '', shelf: '', storage_location: '', notes: '',
   sous_vide_ready: false, is_dairy_free: false, portions: 1,
 };
+
+/** Shared input/select/textarea class */
+const fieldCls = [
+  'w-full border rounded-lg px-3 py-2 text-sm',
+  'border-neutral-300 bg-white text-neutral-900',
+  'dark:border-neutral-600 dark:bg-neutral-700 dark:text-neutral-100',
+  'focus:ring-2 focus:ring-green-400 focus:outline-none',
+  'placeholder:text-neutral-400 dark:placeholder:text-neutral-500',
+].join(' ');
+
+const lc = 'block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1';
+const modalOuter = 'fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4';
+const modalBox = [
+  'bg-white dark:bg-neutral-800',
+  'rounded-2xl shadow-2xl w-full',
+  'ring-1 ring-neutral-200 dark:ring-neutral-700',
+].join(' ');
+const stickyHeader = [
+  'flex items-center justify-between px-5 py-4',
+  'border-b border-neutral-200 dark:border-neutral-700',
+  'sticky top-0 bg-white dark:bg-neutral-800 z-10 rounded-t-2xl',
+].join(' ');
 
 function daysUntilExpiry(date?: string): number | null {
   if (!date) return null;
@@ -28,15 +50,24 @@ function daysUntilExpiry(date?: string): number | null {
 function ExpiryBadge({ date }: { date?: string }) {
   const days = daysUntilExpiry(date);
   if (days === null) return null;
-  const cls = days < 0 ? 'bg-red-100 text-red-700'
-    : days <= 3  ? 'bg-orange-100 text-orange-700'
-    : days <= 7  ? 'bg-yellow-100 text-yellow-700'
-    : 'bg-green-100 text-green-700';
+  const cls = days < 0  ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+    : days <= 3 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+    : days <= 7 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400'
+    : 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400';
   const label = days < 0 ? 'Expired' : days === 0 ? 'Today' : `${days}d`;
   return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>{label}</span>;
 }
 
-export default function InventoryView() {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      {label && <label className={lc}>{label}</label>}
+      {children}
+    </div>
+  );
+}
+
+export function InventoryView() {
   const [activeSection, setActiveSection] = useState<Section>('pantry');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,65 +80,42 @@ export default function InventoryView() {
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSection, expiringFilter]);
+  useEffect(() => { load(); }, [activeSection, expiringFilter]); // eslint-disable-line
 
   async function load() {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
       if (expiringFilter) params.expiring = '7';
-      const data = await listItems(activeSection, params);
-      setItems(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+      setItems(await listItems(activeSection, params));
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }
 
-  function openCreate() {
-    setEditItem(null);
-    setForm(EMPTY_FORM);
-    setShowForm(true);
-  }
-
-  function openEdit(item: InventoryItem) {
-    setEditItem(item);
-    setForm({ ...item });
-    setShowForm(true);
-  }
+  function openCreate() { setEditItem(null); setForm(EMPTY_FORM); setShowForm(true); }
+  function openEdit(item: InventoryItem) { setEditItem(item); setForm({ ...item }); setShowForm(true); }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     try {
-      if (editItem) {
-        await updateItem(activeSection, editItem.id, form);
-      } else {
-        await createItem(activeSection, form);
-      }
-      setShowForm(false);
-      load();
-    } catch (err) {
-      console.error(err);
-    }
+      editItem ? await updateItem(activeSection, editItem.id, form)
+               : await createItem(activeSection, form);
+      setShowForm(false); load();
+    } catch (err) { console.error(err); }
   }
 
   async function handleDelete(id: number) {
     if (!confirm('Delete this item?')) return;
-    await deleteItem(activeSection, id);
-    load();
+    await deleteItem(activeSection, id); load();
   }
 
   async function handleExport() {
     const csv = await exportCSV(activeSection);
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `${activeSection}-export.csv`; a.click();
-    URL.revokeObjectURL(url);
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+      download: `${activeSection}-export.csv`,
+    });
+    a.click();
   }
 
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -119,9 +127,8 @@ export default function InventoryView() {
       const result = await importCSV(activeSection, rows);
       setImportStatus(`✅ Imported ${result.inserted} items${result.errors.length ? ` (${result.errors.length} errors)` : ''}`);
       load();
-    } catch {
-      setImportStatus('❌ Import failed');
-    } finally {
+    } catch { setImportStatus('❌ Import failed'); }
+    finally {
       if (fileRef.current) fileRef.current.value = '';
       setTimeout(() => setImportStatus(null), 4000);
     }
@@ -136,22 +143,24 @@ export default function InventoryView() {
   const isBulk = activeSection === 'bulk';
   const filtered = items.filter(item => {
     if (!search) return true;
-    const label = isBulk ? item.batch_name : item.name;
-    return (label ?? '').toLowerCase().includes(search.toLowerCase());
+    return ((isBulk ? item.batch_name : item.name) ?? '').toLowerCase().includes(search.toLowerCase());
   });
+
+  const toolbarBtn = 'px-3 py-2 bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700';
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">🏡 Inventory</h1>
+      <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-6">🏡 Inventory</h1>
 
       {/* Section tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 overflow-x-auto">
+      <div className="flex gap-1 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1 mb-6 overflow-x-auto">
         {SECTIONS.map(s => (
-          <button
-            key={s.key}
+          <button key={s.key}
             onClick={() => { setActiveSection(s.key); setSearch(''); }}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              activeSection === s.key ? 'bg-white shadow text-green-700' : 'text-gray-600 hover:text-gray-800'
+              activeSection === s.key
+                ? 'bg-white dark:bg-neutral-700 shadow text-green-700 dark:text-green-400'
+                : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
             }`}
           >
             <span>{s.icon}</span>{s.label}
@@ -164,28 +173,32 @@ export default function InventoryView() {
         <input
           type="search" placeholder="Search items…"
           value={search} onChange={e => setSearch(e.target.value)}
-          className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 focus:outline-none"
+          className={fieldCls + ' flex-1 min-w-40'}
         />
         <button
           onClick={() => setExpiringFilter(v => !v)}
           className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
-            expiringFilter ? 'bg-orange-100 border-orange-400 text-orange-700' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+            expiringFilter
+              ? 'bg-orange-100 border-orange-400 text-orange-700 dark:bg-orange-900/40 dark:border-orange-700 dark:text-orange-400'
+              : toolbarBtn
           }`}
         >
           ⏰ Expiring soon
         </button>
-        <button onClick={() => setShowScanner(true)} className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">📷 Scan</button>
-        <button onClick={openCreate} className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">+ Add</button>
-        <button onClick={handleExport} className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">⬇ Export</button>
-        <button onClick={() => downloadTemplate(activeSection)} className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">📄 Template</button>
-        <label className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 cursor-pointer">
+        <button onClick={() => setShowScanner(true)} className={toolbarBtn}>📷 Scan</button>
+        <button onClick={openCreate} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">+ Add</button>
+        <button onClick={handleExport} className={toolbarBtn}>⬇ Export</button>
+        <button onClick={() => downloadTemplate(activeSection)} className={toolbarBtn}>📄 Template</button>
+        <label className={toolbarBtn + ' cursor-pointer'}>
           ⬆ Import
           <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
         </label>
       </div>
 
       {importStatus && (
-        <div className="mb-4 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">{importStatus}</div>
+        <div className="mb-4 px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+          {importStatus}
+        </div>
       )}
 
       {/* Items list */}
@@ -194,7 +207,7 @@ export default function InventoryView() {
           <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-neutral-400 dark:text-neutral-500">
           <p className="text-4xl mb-3">{SECTIONS.find(s => s.key === activeSection)?.icon}</p>
           <p className="font-medium">No items yet</p>
           <p className="text-sm mt-1">Add items manually or import a CSV</p>
@@ -202,49 +215,57 @@ export default function InventoryView() {
       ) : (
         <div className="space-y-2">
           {filtered.map(item => (
-            <div key={item.id} className="flex items-start gap-3 bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+            <div key={item.id}
+              className="flex items-start gap-3 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl p-4 hover:shadow-sm transition-shadow">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-gray-800 truncate">
+                  <span className="font-medium text-neutral-900 dark:text-neutral-100 truncate">
                     {isBulk ? item.batch_name : item.name}
                   </span>
                   {item.category && (
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{item.category}</span>
+                    <span className="text-xs text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-700 px-2 py-0.5 rounded-full">
+                      {item.category}
+                    </span>
                   )}
                   <ExpiryBadge date={item.expiration_date} />
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-gray-500">
-                  {!isBulk && item.quantity != null && (
-                    <span>{item.quantity} {item.unit || 'units'}</span>
-                  )}
-                  {isBulk && item.portions != null && (
-                    <span>{item.portions} portions</span>
-                  )}
-                  {item.upc && <span className="font-mono text-xs">UPC: {item.upc}</span>}
-                  {item.freezer_bin && <span>Bin: {item.freezer_bin}</span>}
-                  {item.shelf && <span>Shelf: {item.shelf}</span>}
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+                  {!isBulk && item.quantity != null && <span>{item.quantity} {item.unit || 'units'}</span>}
+                  {isBulk  && item.portions  != null && <span>{item.portions} portions</span>}
+                  {item.upc             && <span className="font-mono text-xs">UPC: {item.upc}</span>}
+                  {item.freezer_bin     && <span>Bin: {item.freezer_bin}</span>}
+                  {item.shelf           && <span>Shelf: {item.shelf}</span>}
                   {item.storage_location && <span>📦 {item.storage_location}</span>}
-                  {item.sous_vide_ready && <span className="text-blue-600">✓ Sous vide ready</span>}
-                  {item.is_dairy_free && <span className="text-purple-600">✓ Dairy-free</span>}
+                  {item.sous_vide_ready && <span className="text-blue-600 dark:text-blue-400">✓ Sous vide ready</span>}
+                  {item.is_dairy_free   && <span className="text-purple-600 dark:text-purple-400">✓ Dairy-free</span>}
                 </div>
-                {item.notes && <p className="mt-1 text-xs text-gray-400 truncate">{item.notes}</p>}
+                {item.notes && <p className="mt-1 text-xs text-neutral-400 dark:text-neutral-500 truncate">{item.notes}</p>}
               </div>
               <div className="flex gap-2 shrink-0">
-                <button onClick={() => openEdit(item)} className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50">Edit</button>
-                <button onClick={() => handleDelete(item.id)} className="text-xs px-3 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Delete</button>
+                <button onClick={() => openEdit(item)}
+                  className="text-xs px-3 py-1.5 border border-neutral-200 dark:border-neutral-600 rounded-lg text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                  Edit
+                </button>
+                <button onClick={() => handleDelete(item.id)}
+                  className="text-xs px-3 py-1.5 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30">
+                  Delete
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Add / Edit modal */}
+      {/* ── Add / Edit modal ── */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white">
-              <h2 className="text-lg font-semibold">{editItem ? 'Edit Item' : `Add to ${SECTIONS.find(s=>s.key===activeSection)?.label}`}</h2>
-              <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        <div className={modalOuter}>
+          <div className={`${modalBox} max-w-lg max-h-[90vh] overflow-y-auto`}>
+            <div className={stickyHeader}>
+              <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                {editItem ? 'Edit Item' : `Add to ${SECTIONS.find(s=>s.key===activeSection)?.label}`}
+              </h2>
+              <button onClick={() => setShowForm(false)}
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 text-2xl">&times;</button>
             </div>
             <form onSubmit={handleSave} className="p-5 space-y-4">
               {isBulk ? (
@@ -254,8 +275,7 @@ export default function InventoryView() {
                       className={fieldCls} placeholder="Sunday Meal Prep" />
                   </Field>
                   <Field label="Recipe Name">
-                    <input value={form.recipe_name||''} onChange={e=>setForm(f=>({...f,recipe_name:e.target.value}))}
-                      className={fieldCls} />
+                    <input value={form.recipe_name||''} onChange={e=>setForm(f=>({...f,recipe_name:e.target.value}))} className={fieldCls} />
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Prep Date"><input type="date" value={form.prep_date||''} onChange={e=>setForm(f=>({...f,prep_date:e.target.value}))} className={fieldCls} /></Field>
@@ -281,48 +301,39 @@ export default function InventoryView() {
                       </Field>
                     </div>
                     <button type="button" onClick={() => setShowScanner(true)}
-                      className="mt-5 px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">📷</button>
+                      className="mt-5 px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                      📷
+                    </button>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="UPC">
-                      <input value={form.upc||''} onChange={e=>setForm(f=>({...f,upc:e.target.value}))} className={fieldCls} placeholder="0001234567890" />
-                    </Field>
-                    <Field label="Category">
-                      <input value={form.category||''} onChange={e=>setForm(f=>({...f,category:e.target.value}))} className={fieldCls} /></Field>
+                    <Field label="UPC"><input value={form.upc||''} onChange={e=>setForm(f=>({...f,upc:e.target.value}))} className={fieldCls} placeholder="0001234567890" /></Field>
+                    <Field label="Category"><input value={form.category||''} onChange={e=>setForm(f=>({...f,category:e.target.value}))} className={fieldCls} /></Field>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Quantity">
-                      <input type="number" step="0.01" min={0} value={form.quantity||0} onChange={e=>setForm(f=>({...f,quantity:+e.target.value}))} className={fieldCls} />
-                    </Field>
-                    <Field label="Unit">
-                      <input value={form.unit||''} onChange={e=>setForm(f=>({...f,unit:e.target.value}))} className={fieldCls} placeholder="kg, bags, pcs…" />
-                    </Field>
+                    <Field label="Quantity"><input type="number" step="0.01" min={0} value={form.quantity||0} onChange={e=>setForm(f=>({...f,quantity:+e.target.value}))} className={fieldCls} /></Field>
+                    <Field label="Unit"><input value={form.unit||''} onChange={e=>setForm(f=>({...f,unit:e.target.value}))} className={fieldCls} placeholder="kg, bags, pcs…" /></Field>
                   </div>
                   <Field label="Expiration Date">
                     <input type="date" value={form.expiration_date||''} onChange={e=>setForm(f=>({...f,expiration_date:e.target.value}))} className={fieldCls} />
                   </Field>
                   {activeSection === 'freezer' && (
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Freezer Bin">
-                        <input value={form.freezer_bin||''} onChange={e=>setForm(f=>({...f,freezer_bin:e.target.value}))} className={fieldCls} placeholder="Bin-1" />
-                      </Field>
+                      <Field label="Freezer Bin"><input value={form.freezer_bin||''} onChange={e=>setForm(f=>({...f,freezer_bin:e.target.value}))} className={fieldCls} placeholder="Bin-1" /></Field>
                       <Field label="">
                         <label className="flex items-center gap-2 mt-6 cursor-pointer">
                           <input type="checkbox" checked={!!form.sous_vide_ready} onChange={e=>setForm(f=>({...f,sous_vide_ready:e.target.checked}))} className="rounded" />
-                          <span className="text-sm text-gray-700">Sous vide ready</span>
+                          <span className="text-sm text-neutral-700 dark:text-neutral-300">Sous vide ready</span>
                         </label>
                       </Field>
                     </div>
                   )}
                   {activeSection === 'refrigerator' && (
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Shelf">
-                        <input value={form.shelf||''} onChange={e=>setForm(f=>({...f,shelf:e.target.value}))} className={fieldCls} placeholder="Top shelf" />
-                      </Field>
+                      <Field label="Shelf"><input value={form.shelf||''} onChange={e=>setForm(f=>({...f,shelf:e.target.value}))} className={fieldCls} placeholder="Top shelf" /></Field>
                       <Field label="">
                         <label className="flex items-center gap-2 mt-6 cursor-pointer">
                           <input type="checkbox" checked={!!form.is_dairy_free} onChange={e=>setForm(f=>({...f,is_dairy_free:e.target.checked}))} className="rounded" />
-                          <span className="text-sm text-gray-700">Dairy-free</span>
+                          <span className="text-sm text-neutral-700 dark:text-neutral-300">Dairy-free</span>
                         </label>
                       </Field>
                     </div>
@@ -339,9 +350,11 @@ export default function InventoryView() {
               </Field>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)}
-                  className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+                  className="flex-1 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                  Cancel
+                </button>
                 <button type="submit"
-                  className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+                  className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium">
                   {editItem ? 'Save changes' : 'Add item'}
                 </button>
               </div>
@@ -350,20 +363,9 @@ export default function InventoryView() {
         </div>
       )}
 
-      {showScanner && (
-        <BarcodeScanner onDetect={handleBarcodeDetect} onClose={() => setShowScanner(false)} />
-      )}
+      {showScanner && <BarcodeScanner onDetect={handleBarcodeDetect} onClose={() => setShowScanner(false)} />}
     </div>
   );
 }
 
-const fieldCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-400 focus:outline-none';
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      {label && <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>}
-      {children}
-    </div>
-  );
-}
+export default InventoryView;
