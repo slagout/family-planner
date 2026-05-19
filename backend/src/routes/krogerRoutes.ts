@@ -6,10 +6,10 @@ import { getPool } from '../db';
 
 export const krogerRouter = Router();
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
 // ---------------------------------------------------------------------------
 // OAuth state store — maps CSRF state token → { userId, expiresAt }
-// An in-memory store is acceptable here; a distributed cache (Redis) would be
-// required for multi-replica deployments.
 // ---------------------------------------------------------------------------
 const pendingStates = new Map<string, { userId: string; expiresAt: number }>();
 const STATE_TTL_MS = 10 * 60 * 1_000; // 10 minutes
@@ -23,8 +23,7 @@ setInterval(() => {
 
 // ---------------------------------------------------------------------------
 // GET /api/kroger/authorize
-// Initiates the Kroger OAuth2 flow. Requires a valid JWT session so we can
-// bind the OAuth state to the authenticated user before the redirect.
+// Initiates the Kroger OAuth2 flow. Requires a valid JWT session.
 // ---------------------------------------------------------------------------
 krogerRouter.get('/authorize', requireAuth, (req: Request, res: Response): void => {
   const state = crypto.randomBytes(16).toString('hex');
@@ -36,33 +35,30 @@ krogerRouter.get('/authorize', requireAuth, (req: Request, res: Response): void 
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Kroger OAuth not configured';
     console.error('[Kroger] Authorization URL error:', message);
-    res.status(503).json({ error: message });
+    res.redirect(`${FRONTEND_URL}/kroger?error=${encodeURIComponent(message)}`);
   }
 });
 
 // ---------------------------------------------------------------------------
 // GET /api/kroger/callback
-// Handles the OAuth2 callback from Kroger.
-// Validates CSRF state, exchanges the authorization code for tokens, and
-// persists tokens to the database via krogerAuth.saveTokens().
-// Returns 400 if `code` is absent (QA probe will receive this, not a generic 404).
+// Handles the OAuth2 callback from Kroger. Redirects to frontend /kroger
+// page with ?linked=true on success or ?error=... on failure.
 // ---------------------------------------------------------------------------
 krogerRouter.get('/callback', async (req: Request, res: Response): Promise<void> => {
   const { code, state, error: oauthError } = req.query as Record<string, string | undefined>;
 
-  // Kroger may return an error param if the user denies access
   if (oauthError) {
-    res.status(400).json({ error: `Kroger authorization denied: ${oauthError}` });
+    res.redirect(`${FRONTEND_URL}/kroger?error=${encodeURIComponent(`Kroger authorization denied: ${oauthError}`)}`);
     return;
   }
 
   if (!code) {
-    res.status(400).json({ error: 'Missing authorization code' });
+    res.redirect(`${FRONTEND_URL}/kroger?error=${encodeURIComponent('Missing authorization code')}`);
     return;
   }
 
   if (!state || !pendingStates.has(state)) {
-    res.status(400).json({ error: 'Invalid or expired OAuth state — please restart the authorization flow' });
+    res.redirect(`${FRONTEND_URL}/kroger?error=${encodeURIComponent('Invalid or expired OAuth state — please try again')}`);
     return;
   }
 
@@ -73,16 +69,15 @@ krogerRouter.get('/callback', async (req: Request, res: Response): Promise<void>
     const tokens = await krogerAuth.exchangeCode(code);
     await krogerAuth.saveTokens(userId, tokens);
     console.log(`[Kroger] Tokens saved for user ${userId}`);
-    res.json({ success: true, message: 'Kroger account linked successfully' });
+    res.redirect(`${FRONTEND_URL}/kroger?linked=true`);
   } catch (err) {
     console.error('[Kroger] Callback token exchange error:', err);
-    res.status(502).json({ error: 'Failed to exchange Kroger authorization code' });
+    res.redirect(`${FRONTEND_URL}/kroger?error=${encodeURIComponent('Failed to exchange Kroger authorization code')}`);
   }
 });
 
 // ---------------------------------------------------------------------------
-// GET /api/kroger/status
-// Returns whether the authenticated user has a linked Kroger account.
+// GET /api/kroger/status  — is the user's Kroger account linked?
 // ---------------------------------------------------------------------------
 krogerRouter.get('/status', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
@@ -95,8 +90,7 @@ krogerRouter.get('/status', requireAuth, async (req: Request, res: Response): Pr
 });
 
 // ---------------------------------------------------------------------------
-// DELETE /api/kroger/disconnect
-// Removes Kroger tokens for the authenticated user, unlinking the account.
+// DELETE /api/kroger/disconnect  — unlink the user's Kroger account
 // ---------------------------------------------------------------------------
 krogerRouter.delete('/disconnect', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
