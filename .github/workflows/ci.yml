@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Backend — TypeScript type-check + lint
+  # ---------------------------------------------------------------------------
+  backend-check:
+    name: Backend Type-Check & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint --if-present
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Frontend — TypeScript type-check + lint
+  # ---------------------------------------------------------------------------
+  frontend-check:
+    name: Frontend Type-Check & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint --if-present
+
+  # ---------------------------------------------------------------------------
+  # Job 3: SonarQube / SonarCloud scan
+  # Runs after both type-checks pass.
+  # Requires repository secrets:
+  #   SONAR_TOKEN  — from SonarCloud (free) or self-hosted SonarQube
+  #   SONAR_HOST_URL — https://sonarcloud.io  OR  http://your-server:9000
+  # ---------------------------------------------------------------------------
+  sonarqube:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    needs: [backend-check, frontend-check]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history required for blame/coverage
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend deps
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=family-planner
+            -Dsonar.sources=backend/src,frontend/src
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/*.d.ts
+            -Dsonar.typescript.tsconfigPath=backend/tsconfig.json,frontend/tsconfig.json
+
+      # Fail the build if the SonarQube Quality Gate is not met
+      - name: SonarQube Quality Gate check
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
