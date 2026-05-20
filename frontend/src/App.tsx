@@ -1,16 +1,17 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
-import { Navbar } from './components/Navbar';
+import { Navbar }           from './components/Navbar';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { Login } from './components/Login';
-import { Register } from './components/Register';
-import { WeeklyPlanner } from './components/WeeklyPlanner';
-import { RecipeBrowser } from './components/RecipeBrowser';
-import { ShoppingList } from './components/ShoppingList';
-import { InventoryView } from './components/InventoryView';
-import { ChoreChart } from './components/ChoreChart';
-import { KrogerConnect } from './components/KrogerConnect';
+import { Login }            from './components/Login';
+import { Register }         from './components/Register';
+import { WeeklyPlanner }    from './components/WeeklyPlanner';
+import { RecipeBrowser }    from './components/RecipeBrowser';
+import { ShoppingList }     from './components/ShoppingList';
+import { InventoryView }    from './components/InventoryView';
+import { ChoreChart }       from './components/ChoreChart';
+import { KrogerConnect }    from './components/KrogerConnect';
+import { FamilyCalendar }   from './components/FamilyCalendar';
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -35,20 +36,20 @@ export default function App() {
         <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
 
         {/* Main app */}
-        <Route path="/"         element={<RequireAuth><WeeklyPlanner /></RequireAuth>} />
-        <Route path="/recipes"  element={<RequireAuth><RecipeBrowser /></RequireAuth>} />
-        <Route path="/shopping" element={<RequireAuth><ShoppingList /></RequireAuth>} />
+        <Route path="/"          element={<RequireAuth><WeeklyPlanner /></RequireAuth>} />
+        <Route path="/calendar"  element={<RequireAuth><FamilyCalendar /></RequireAuth>} />
+        <Route path="/recipes"   element={<RequireAuth><RecipeBrowser /></RequireAuth>} />
+        <Route path="/shopping"  element={<RequireAuth><ShoppingList /></RequireAuth>} />
 
         {/* Inventory — 4 tabs: Pantry, Freezer, Refrigerator, Bulk Cooking */}
         <Route path="/inventory" element={<RequireAuth><InventoryView /></RequireAuth>} />
-        {/* Legacy /pantry redirect */}
         <Route path="/pantry"    element={<Navigate to="/inventory" replace />} />
 
         {/* Chores & Rewards */}
-        <Route path="/chores"   element={<RequireAuth><ChoreChart /></RequireAuth>} />
+        <Route path="/chores"    element={<RequireAuth><ChoreChart /></RequireAuth>} />
 
         {/* Kroger account */}
-        <Route path="/kroger"   element={<RequireAuth><KrogerConnect /></RequireAuth>} />
+        <Route path="/kroger"    element={<RequireAuth><KrogerConnect /></RequireAuth>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

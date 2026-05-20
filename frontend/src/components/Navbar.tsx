@@ -25,12 +25,13 @@ function ThemeToggle() {
 }
 
 const NAV_ITEMS = [
-  { to: '/',          label: 'Planner' },
+  { to: '/',          label: 'Planner'  },
+  { to: '/calendar',  label: '📅 Calendar' },
   { to: '/inventory', label: 'Inventory' },
-  { to: '/chores',    label: 'Chores' },
-  { to: '/recipes',   label: 'Recipes' },
+  { to: '/chores',    label: 'Chores'   },
+  { to: '/recipes',   label: 'Recipes'  },
   { to: '/shopping',  label: 'Shopping' },
-  { to: '/kroger',    label: 'Kroger' },
+  { to: '/kroger',    label: 'Kroger'   },
 ];
 
 export function Navbar() {
@@ -98,7 +99,7 @@ export function Navbar() {
             <ThemeToggle />
             {user && (
               <button className="p-2" onClick={() => setOpen(!open)} aria-label="Toggle menu">
-                <span className="text-2xl">{open ? '✕' : '☰'}</span>
+                <span className="text-2xl">{open ? '\u2715' : '\u2630'}</span>
               </button>
             )}
           </div>
