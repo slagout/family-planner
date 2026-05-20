@@ -9,6 +9,7 @@ on:
 jobs:
   # ---------------------------------------------------------------------------
   # Job 1: Backend — TypeScript type-check + lint
+  # Runs on GitHub-hosted runner (no LAN access needed)
   # ---------------------------------------------------------------------------
   backend-check:
     name: Backend Type-Check & Lint
@@ -38,6 +39,7 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 2: Frontend — TypeScript type-check + lint
+  # Runs on GitHub-hosted runner (no LAN access needed)
   # ---------------------------------------------------------------------------
   frontend-check:
     name: Frontend Type-Check & Lint
@@ -66,21 +68,27 @@ jobs:
         run: npm run lint --if-present
 
   # ---------------------------------------------------------------------------
-  # Job 3: SonarQube / SonarCloud scan
-  # Runs after both type-checks pass.
-  # Requires repository secrets:
-  #   SONAR_TOKEN  — from SonarCloud (free) or self-hosted SonarQube
-  #   SONAR_HOST_URL — https://sonarcloud.io  OR  http://your-server:9000
+  # Job 3: SonarQube scan
+  # MUST run on a self-hosted runner on your LAN so it can reach
+  # http://192.168.200.45:9000 (SonarQube).
+  #
+  # Setup once (on 192.168.200.45 or any LAN machine):
+  #   https://github.com/slagout/family-planner/settings/actions/runners/new
+  #   Label the runner: self-hosted
+  #
+  # Required GitHub repo secrets (Settings → Secrets → Actions):
+  #   SONAR_TOKEN    — generate in SonarQube UI: My Account → Security → Tokens
+  #   SONAR_HOST_URL — http://192.168.200.45:9000
   # ---------------------------------------------------------------------------
   sonarqube:
-    name: SonarQube Scan
-    runs-on: ubuntu-latest
+    name: SonarQube Scan (self-hosted)
+    runs-on: self-hosted          # <-- must be your LAN runner
     needs: [backend-check, frontend-check]
 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history required for blame/coverage
+          fetch-depth: 0          # full history for blame/new-code detection
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -107,7 +115,6 @@ jobs:
             -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/*.d.ts
             -Dsonar.typescript.tsconfigPath=backend/tsconfig.json,frontend/tsconfig.json
 
-      # Fail the build if the SonarQube Quality Gate is not met
       - name: SonarQube Quality Gate check
         uses: SonarSource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
