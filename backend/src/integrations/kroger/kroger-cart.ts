@@ -1,12 +1,16 @@
 import axios from 'axios';
 import { krogerAuth } from './kroger-auth';
 
-const KROGER_API = 'https://api.kroger.com/v1';
+const KROGER_API = process.env.KROGER_API_BASE_URL || 'https://api-ce.kroger.com/v1';
 
+/**
+ * Per Kroger Cart API v1.2.3 (openapi.json) §cart.cartItemRequestModel:
+ * modality is restricted to ["DELIVERY", "PICKUP"] only.
+ */
 export interface CartItem {
   upc: string;
   quantity: number;
-  modality?: 'PICKUP' | 'SHIP' | 'DELIVERY';
+  modality?: 'DELIVERY' | 'PICKUP';
 }
 
 export const krogerCart = {

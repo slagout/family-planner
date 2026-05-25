@@ -1,0 +1,79 @@
+# =============================================================================
+# Family Planner — LLM Service (Standalone Deploy)
+# =============================================================================
+# Run this on a separate machine (ideally GPU-equipped) for AI/LLM features.
+# Once running, set LLM_API_URL=http://<this-host>:11434 in your backend .env.
+#
+# Quick start:
+#   1. cp .env.example .env
+#   2. docker compose up -d
+#   3. docker compose run --rm model-init   # pull the default model
+#   4. curl http://localhost:11434/api/tags  # verify it's running
+#
+# NVIDIA GPU acceleration:
+#   Uncomment the 'deploy' block on fp-llm and ensure
+#   nvidia-container-toolkit is installed on the host.
+# =============================================================================
+
+version: '3.9'
+
+networks:
+  fp-llm:
+    driver: bridge
+
+volumes:
+  llm-models:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Ollama — LLM inference server
+  # ---------------------------------------------------------------------------
+  fp-llm:
+    image: ollama/ollama:latest
+    container_name: fp-llm
+    restart: unless-stopped
+    networks:
+      - fp-llm
+    ports:
+      - "${LLM_PORT:-11434}:11434"
+    volumes:
+      - llm-models:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+      OLLAMA_ORIGINS: ${ALLOWED_ORIGINS:-*}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Uncomment for NVIDIA GPU acceleration:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Model Init — pre-pulls the configured model on first deploy
+  # Run manually after the stack is up: docker compose run --rm model-init
+  # ---------------------------------------------------------------------------
+  model-init:
+    image: ollama/ollama:latest
+    depends_on:
+      fp-llm:
+        condition: service_healthy
+    networks:
+      - fp-llm
+    environment:
+      OLLAMA_HOST: fp-llm:11434
+    entrypoint: >
+      sh -c "
+        echo 'Pulling model: ${DEFAULT_MODEL:-llama3:8b} ...' &&
+        ollama pull ${DEFAULT_MODEL:-llama3:8b} &&
+        echo 'Done. LLM is ready.'
+      "
+    restart: "no"

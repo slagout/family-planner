@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { krogerAuth } from './kroger-auth';
 
-const KROGER_API = 'https://api.kroger.com/v1';
+const KROGER_API = process.env.KROGER_API_BASE_URL || 'https://api-ce.kroger.com/v1';
 
 export interface KrogerProduct {
   productId: string;
@@ -15,22 +15,31 @@ export interface KrogerProduct {
 }
 
 export const krogerResolver = {
+  /**
+   * Searches the Kroger Products API using ClientContext (client_credentials,
+   * scope: product.compact) as required by the Products API v1.3.0 spec.
+   *
+   * filter.locationId is required to receive price and fulfillment data.
+   * Supported params: filter.term, filter.brand, filter.locationId, filter.limit, filter.start.
+   */
   async searchProduct(
-    userId: string,
     query: string,
     locationId: string,
-    limit = 5
+    options: { brand?: string; limit?: number; start?: number } = {}
   ): Promise<KrogerProduct[]> {
-    const tokens = await krogerAuth.getValidTokens(userId);
-    if (!tokens) throw new Error(`No Kroger tokens for user ${userId}. OAuth required.`);
+    const accessToken = await krogerAuth.getClientCredentialsToken();
+
+    const params: Record<string, string | number> = {
+      'filter.term': query,
+      'filter.locationId': locationId,
+      'filter.limit': options.limit ?? 5,
+    };
+    if (options.brand) params['filter.brand'] = options.brand;
+    if (options.start !== undefined) params['filter.start'] = options.start;
 
     const { data } = await axios.get(`${KROGER_API}/products`, {
-      headers: { Authorization: `Bearer ${tokens.accessToken}` },
-      params: {
-        'filter.term': query,
-        'filter.locationId': locationId,
-        'filter.limit': limit,
-      },
+      headers: { Authorization: `Bearer ${accessToken}` },
+      params,
     });
 
     return (data.data || []).map((p: any) => ({
@@ -46,13 +55,12 @@ export const krogerResolver = {
   },
 
   async resolveIngredients(
-    userId: string,
     ingredients: Array<{ name: string; quantity: number; unit?: string }>,
     locationId: string
   ): Promise<Array<{ ingredient: string; product: KrogerProduct | null; quantity: number; unit?: string }>> {
     const results = await Promise.allSettled(
       ingredients.map(async (ing) => {
-        const products = await krogerResolver.searchProduct(userId, ing.name, locationId, 1);
+        const products = await krogerResolver.searchProduct(ing.name, locationId, { limit: 1 });
         return {
           ingredient: ing.name,
           product: products[0] || null,

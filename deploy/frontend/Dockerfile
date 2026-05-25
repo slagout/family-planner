@@ -1,17 +1,19 @@
 # =============================================================================
 # Family Planner — Frontend (Client Install)
 # =============================================================================
-# This image is what clients install. It is a pure static nginx container.
-# The only required configuration is VITE_API_URL — set it to wherever the
-# backend API is hosted (centrally by you, or self-deployed by the client).
+# Pure static nginx container. API_URL is configured at RUNTIME via env var
+# — no image rebuild needed when pointing at a different backend server.
 #
-# Build:
-#   docker build \
-#     --build-arg VITE_API_URL=https://api.example.com \
-#     -t family-planner-frontend .
+# Build (from repo root):
+#   docker build -f deploy/frontend/Dockerfile -t family-planner-frontend .
 #
-# Run:
-#   docker run -p 80:80 family-planner-frontend
+# Run with runtime API URL:
+#   docker run -p 80:80 -e API_URL=https://api.your-domain.com family-planner-frontend
+#
+# Via docker compose (recommended):
+#   cd deploy/frontend && cp .env.example .env
+#   # Edit .env: set API_URL=https://your-backend.com
+#   docker compose up -d
 # =============================================================================
 
 # ---- Stage 1: Build React app ------------------------------------------------
@@ -19,25 +21,35 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Accept the API base URL at build time (baked into the JS bundle)
-ARG VITE_API_URL=http://localhost:4000
-ENV VITE_API_URL=$VITE_API_URL
-
+# React SPA uses baseURL='/api'; nginx proxies /api/ to $API_URL at runtime.
+# No build-time URL baking — fully runtime-configurable via env var.
 COPY frontend/package*.json ./
 RUN npm ci --prefer-offline
 
 COPY frontend/ .
 RUN npm run build
 
-# ---- Stage 2: Serve with nginx -----------------------------------------------
+# ---- Stage 2: Serve with nginx (runtime-configurable) -----------------------
 FROM nginx:1.25-alpine AS runner
 
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY deploy/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# Remove default nginx config
+RUN rm -f /etc/nginx/conf.d/default.conf
 
-# Health check for Docker / Swarm
+# Static assets from Vite build
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# nginx template — ${API_URL} is substituted by entrypoint at container start
+COPY deploy/frontend/nginx.conf /etc/nginx/templates/default.conf.template
+
+# Entrypoint injects API_URL before nginx starts
+COPY deploy/frontend/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# Default: override with -e API_URL=https://... or in .env
+ENV API_URL=http://localhost:4000
+
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
   CMD wget -qO- http://localhost/health || exit 1
 
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

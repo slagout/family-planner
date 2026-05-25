@@ -1,4 +1,3 @@
-version: '3.9'
 services:
   db:
     image: postgres:16
@@ -37,8 +36,11 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       KROGER_CLIENT_ID: ${KROGER_CLIENT_ID:-}
       KROGER_CLIENT_SECRET: ${KROGER_CLIENT_SECRET:-}
-      KROGER_REDIRECT_URI: ${KROGER_REDIRECT_URI:-http://localhost:4000/api/kroger/callback}
+      KROGER_REDIRECT_URI: ${KROGER_REDIRECT_URI:-http://192.168.200.45:4000/api/kroger/callback}
       KROGER_TOKEN_ENCRYPTION_KEY: ${KROGER_TOKEN_ENCRYPTION_KEY:-}
+      KROGER_API_BASE_URL: ${KROGER_API_BASE_URL:-https://api-ce.kroger.com/v1}
+      FRONTEND_URL: ${FRONTEND_URL:-http://192.168.200.47:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://192.168.200.47:3000,http://192.168.200.47}
     ports:
       - "192.168.200.45:4000:4000"
     healthcheck:
@@ -47,16 +49,6 @@ services:
       timeout: 5s
       retries: 5
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    ports:
-      - "192.168.200.45:3000:80"
 
 volumes:
   pgdata:

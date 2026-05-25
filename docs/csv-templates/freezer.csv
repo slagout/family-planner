@@ -1,0 +1,4 @@
+upc,name,category,quantity,unit,expiration_date,freezer_bin,sous_vide_ready,notes
+0001111060903,Frozen Chicken Breast,Protein,4,packs,2026-08-15,Bin-1,true,Pre-marinated garlic herb
+0002345678901,Frozen Broccoli,Vegetable,3,bags,2026-11-30,Bin-2,false,
+0003456789012,Lasagna (Batch),Prepared Meal,2,portions,2026-07-20,Bin-1,false,Sunday meal prep
