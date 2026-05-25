@@ -9,6 +9,7 @@ import { WeeklyPlanner } from './components/WeeklyPlanner';
 import { RecipeBrowser } from './components/RecipeBrowser';
 import { PantryView } from './components/PantryView';
 import { ShoppingList } from './components/ShoppingList';
+import { FamilyPlanner } from './components/FamilyPlanner';
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
         <Route path="/" element={<RequireAuth><WeeklyPlanner /></RequireAuth>} />
+        <Route path="/family" element={<RequireAuth><FamilyPlanner /></RequireAuth>} />
         <Route path="/recipes" element={<RequireAuth><RecipeBrowser /></RequireAuth>} />
         <Route path="/pantry" element={<RequireAuth><PantryView /></RequireAuth>} />
         <Route path="/shopping" element={<RequireAuth><ShoppingList /></RequireAuth>} />

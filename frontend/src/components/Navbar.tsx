@@ -36,6 +36,7 @@ export function Navbar() {
           {user && (
             <div className="hidden sm:flex items-center gap-1">
               {navLink('/', 'Planner')}
+              {navLink('/family', 'Family')}
               {navLink('/recipes', 'Recipes')}
               {navLink('/pantry', 'Pantry')}
               {navLink('/shopping', 'Shopping')}
@@ -74,6 +75,7 @@ export function Navbar() {
       {open && user && (
         <div className="sm:hidden border-t border-gray-100 px-4 py-3 flex flex-col gap-1">
           {navLink('/', 'Planner')}
+          {navLink('/family', 'Family')}
           {navLink('/recipes', 'Recipes')}
           {navLink('/pantry', 'Pantry')}
           {navLink('/shopping', 'Shopping')}
