@@ -6,6 +6,8 @@ import { pantryRouter }     from './pantryRoutes';
 import { complianceRouter } from './complianceRoutes';
 import { krogerRouter }     from './krogerRoutes';
 import { haRouter }         from './haRoutes';
+import { childrenRouter }   from './childrenRoutes';
+import { choreRouter }      from './choreRoutes';
 
 export const apiRouter = Router();
 
@@ -16,3 +18,5 @@ apiRouter.use('/pantry',     pantryRouter);
 apiRouter.use('/compliance', complianceRouter);
 apiRouter.use('/kroger',     krogerRouter);
 apiRouter.use('/ha',         haRouter);   // Home Assistant REST integration
+apiRouter.use('/children',   childrenRouter);
+apiRouter.use('/chores',     choreRouter);

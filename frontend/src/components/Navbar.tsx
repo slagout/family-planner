@@ -27,6 +27,7 @@ function ThemeToggle() {
 const NAV_ITEMS = [
   { to: '/',          label: 'Planner'  },
   { to: '/calendar',  label: '📅 Calendar' },
+  { to: '/family',    label: 'Family'   },
   { to: '/inventory', label: 'Inventory' },
   { to: '/chores',    label: 'Chores'   },
   { to: '/recipes',   label: 'Recipes'  },

@@ -12,6 +12,7 @@ import { InventoryView }    from './components/InventoryView';
 import { ChoreChart }       from './components/ChoreChart';
 import { KrogerConnect }    from './components/KrogerConnect';
 import { FamilyCalendar }   from './components/FamilyCalendar';
+import { FamilyPlanner }    from './components/FamilyPlanner';
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -38,6 +39,7 @@ export default function App() {
         {/* Main app */}
         <Route path="/"          element={<RequireAuth><WeeklyPlanner /></RequireAuth>} />
         <Route path="/calendar"  element={<RequireAuth><FamilyCalendar /></RequireAuth>} />
+        <Route path="/family"    element={<RequireAuth><FamilyPlanner /></RequireAuth>} />
         <Route path="/recipes"   element={<RequireAuth><RecipeBrowser /></RequireAuth>} />
         <Route path="/shopping"  element={<RequireAuth><ShoppingList /></RequireAuth>} />
 
@@ -50,7 +52,6 @@ export default function App() {
 
         {/* Kroger account */}
         <Route path="/kroger"    element={<RequireAuth><KrogerConnect /></RequireAuth>} />
-
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
