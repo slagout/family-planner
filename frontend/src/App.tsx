@@ -9,6 +9,9 @@ import { WeeklyPlanner } from './components/WeeklyPlanner';
 import { RecipeBrowser } from './components/RecipeBrowser';
 import { PantryView } from './components/PantryView';
 import { ShoppingList } from './components/ShoppingList';
+import { FamilyPlanner } from './components/FamilyPlanner';
+import { CalendarView } from './components/CalendarView';
+import { RewardsStore, PendingRedemptions } from './components/RewardsStore';
 
 function RequireAuth({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -27,11 +30,37 @@ export default function App() {
         <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
         <Route path="/" element={<RequireAuth><WeeklyPlanner /></RequireAuth>} />
+        <Route path="/family" element={<RequireAuth><FamilyPlanner /></RequireAuth>} />
         <Route path="/recipes" element={<RequireAuth><RecipeBrowser /></RequireAuth>} />
         <Route path="/pantry" element={<RequireAuth><PantryView /></RequireAuth>} />
         <Route path="/shopping" element={<RequireAuth><ShoppingList /></RequireAuth>} />
+        <Route path="/calendar/:childId" element={<RequireAuth><CalendarViewPage /></RequireAuth>} />
+        <Route path="/rewards" element={<RequireAuth><RewardsPage /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+    </div>
+  );
+}
+
+function CalendarViewPage() {
+  const { user } = useAuth();
+  // Use the authenticated user's ID or a child ID from the route param
+  const childId = new URLSearchParams(window.location.search).get('childId') || user?.userId || '';
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-6">
+      <CalendarView childId={childId} />
+    </div>
+  );
+}
+
+function RewardsPage() {
+  const { user } = useAuth();
+  const isParent = user?.roles?.includes('parent') || user?.roles?.includes('admin');
+  const childId = new URLSearchParams(window.location.search).get('childId') || user?.userId || '';
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+      {isParent ? <PendingRedemptions /> : <RewardsStore childId={childId} />}
     </div>
   );
 }

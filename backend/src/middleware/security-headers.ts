@@ -35,7 +35,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     [
       'geolocation=()',
       'microphone=()',
-      'camera=()',
+      // Allow first-party camera access for UPC scanning.
+      'camera=(self)',
       'payment=()',
       'usb=()',
     ].join(', ')
