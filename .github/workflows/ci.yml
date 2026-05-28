@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Backend — TypeScript type-check + lint
+  # Runs on GitHub-hosted runner (no LAN access needed)
+  # ---------------------------------------------------------------------------
+  backend-check:
+    name: Backend Type-Check & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint --if-present
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Frontend — TypeScript type-check + lint
+  # Runs on GitHub-hosted runner (no LAN access needed)
+  # ---------------------------------------------------------------------------
+  frontend-check:
+    name: Frontend Type-Check & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint --if-present
+
+  # ---------------------------------------------------------------------------
+  # Job 3: SonarQube scan
+  # MUST run on a self-hosted runner on your LAN so it can reach
+  # http://192.168.200.45:9000 (SonarQube).
+  #
+  # Setup once (on 192.168.200.45 or any LAN machine):
+  #   https://github.com/slagout/family-planner/settings/actions/runners/new
+  #   Label the runner: self-hosted
+  #
+  # Required GitHub repo secrets (Settings → Secrets → Actions):
+  #   SONAR_TOKEN    — generate in SonarQube UI: My Account → Security → Tokens
+  #   SONAR_HOST_URL — http://192.168.200.45:9000
+  # ---------------------------------------------------------------------------
+  sonarqube:
+    name: SonarQube Scan (self-hosted)
+    runs-on: self-hosted          # <-- must be your LAN runner
+    needs: [backend-check, frontend-check]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history for blame/new-code detection
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend deps
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=family-planner
+            -Dsonar.sources=backend/src,frontend/src
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/*.d.ts
+            -Dsonar.typescript.tsconfigPath=backend/tsconfig.json,frontend/tsconfig.json
+
+      - name: SonarQube Quality Gate check
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

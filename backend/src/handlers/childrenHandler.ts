@@ -1,5 +1,4 @@
 import { Response, Request } from 'express';
-import { AuthPayload } from '../types';
 import { childRepo } from '../repositories/childRepo';
 import { getPool } from '../db';
 
@@ -78,3 +77,4 @@ export async function createChild(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: 'Failed to create child' });
   }
 }
+

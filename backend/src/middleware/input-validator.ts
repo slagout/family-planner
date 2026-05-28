@@ -7,6 +7,11 @@ const SUSPICIOUS_PATTERNS = [
 ];
 
 export function validateInput(req: Request, res: Response, next: NextFunction): void {
+  if (req.path.startsWith('/api/auth/') || req.path === '/api/kroger/callback') {
+    next();
+    return;
+  }
+
   const checkValue = (val: unknown): boolean => {
     if (typeof val === 'string') {
       return SUSPICIOUS_PATTERNS.some((pattern) => pattern.test(val));

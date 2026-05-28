@@ -1,0 +1,43 @@
+# =============================================================================
+# LOCAL DEVELOPMENT ONLY — SonarQube Community Edition
+# Do NOT include in production deployments.
+#
+# Usage:
+#   docker compose -f docker-compose.sonarqube.yml up -d
+#   # Wait ~60s for startup, then open http://localhost:9000
+#   # Default login: admin / admin  (change on first login)
+#
+# Run a scan against local SonarQube:
+#   npx sonar-scanner \
+#     -Dsonar.host.url=http://localhost:9000 \
+#     -Dsonar.login=<your-token>
+# =============================================================================
+
+services:
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: fp_sonarqube
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/api/system/status | grep -q 'UP'"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+volumes:
+  sonarqube_data:
+  sonarqube_logs:
+  sonarqube_extensions:

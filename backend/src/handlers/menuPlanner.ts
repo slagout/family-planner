@@ -117,7 +117,10 @@ export async function planWeek(req: Request, res: Response): Promise<void> {
         krogerMessage = 'No missing ingredients — cart not created';
       } else {
         try {
-          const result = await krogerService.createCartWithItems(missingIngredients);
+          // Extract CustomerContext token from the Authorization header for cart.basic:write
+          const authHeader = req.headers.authorization;
+          const userAccessToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+          const result = await krogerService.createCartWithItems(missingIngredients, userAccessToken);
           krogerCartId = result.cartId;
           krogerUnmatchedItems = result.unmatchedIngredients;
         } catch (err: any) {

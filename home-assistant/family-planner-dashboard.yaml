@@ -1,0 +1,156 @@
+# =============================================================================
+# Home Assistant — Family Planner Dashboard
+# =============================================================================
+# Prerequisites
+# ─────────────
+# 1. Set HA_API_TOKEN in your backend .env
+#    node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))"
+# 2. Add the REST sensor block below to configuration.yaml
+# 3. Restart Home Assistant
+# 4. Add these cards to any Lovelace dashboard
+# =============================================================================
+
+# ── Step 1: Add to configuration.yaml ─────────────────────────────────────────
+# rest:
+#   - resource: http://192.168.200.45:4000/api/ha/summary
+#     headers:
+#       Authorization: "Bearer YOUR_HA_API_TOKEN"
+#     scan_interval: 300          # poll every 5 minutes
+#     sensor:
+#       - name: "Family Planner Summary"
+#         unique_id: family_planner_summary
+#         value_template: "{{ value_json.date }}"
+#         json_attributes:
+#           - date
+#           - chores_done
+#           - chores_total
+#           - meals
+#           - expiring_items
+#           - children
+
+# ── Step 2: Lovelace cards ─────────────────────────────────────────────────────
+
+title: Family Planner
+path: family-planner
+type: custom:grid-layout
+cards:
+
+  # ── Today's Meals ──────────────────────────────────────────────────────────
+  - type: markdown
+    title: "🍽️ Today's Meals"
+    card_mod:
+      style: |
+        ha-card {
+          border-radius: 16px;
+          background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+          border: 1px solid #bbf7d0;
+        }
+        ha-card .card-header { color: #166534; font-weight: 800; font-size: 1.1rem; }
+        ha-card .card-content { color: #15803d; }
+    content: >
+      {% set meals = state_attr('sensor.family_planner_summary', 'meals') %}
+      {% if meals and meals | length > 0 %}
+        {% for meal in meals %}
+          **{{ meal.meal_type | title }}** — {{ meal.name }}
+
+        {% endfor %}
+      {% else %}
+        _No meal plan for today. Open Family Planner to generate one._
+      {% endif %}
+
+  # ── Chore Progress ─────────────────────────────────────────────────────────
+  - type: markdown
+    title: "✅ Today's Chores"
+    card_mod:
+      style: |
+        ha-card {
+          border-radius: 16px;
+          background: linear-gradient(135deg, #fffbeb, #fef3c7);
+          border: 1px solid #fde68a;
+        }
+        ha-card .card-header { color: #92400e; font-weight: 800; }
+        ha-card .card-content { color: #78350f; }
+    content: >
+      {% set done  = state_attr('sensor.family_planner_summary', 'chores_done')  | int(0) %}
+      {% set total = state_attr('sensor.family_planner_summary', 'chores_total') | int(0) %}
+      {% if total > 0 %}
+        **{{ done }} / {{ total }} completed**
+
+        {% set pct = ((done / total) * 100) | round %}
+        {{ '🟩' * (pct // 20) }}{{ '⬜' * (5 - (pct // 20)) }} {{ pct }}%
+      {% else %}
+        _No chores assigned for today._
+      {% endif %}
+
+  # ── Children Points ────────────────────────────────────────────────────────
+  - type: markdown
+    title: "⭐ Points Leaderboard"
+    card_mod:
+      style: |
+        ha-card {
+          border-radius: 16px;
+          background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+          border: 1px solid #bae6fd;
+        }
+        ha-card .card-header { color: #075985; font-weight: 800; }
+        ha-card .card-content { color: #0369a1; }
+    content: >
+      {% set kids = state_attr('sensor.family_planner_summary', 'children') %}
+      {% if kids and kids | length > 0 %}
+        {% for kid in kids | sort(attribute='points', reverse=true) %}
+          **{{ kid.name }}** — {{ kid.points | default(0) }} pts
+
+        {% endfor %}
+      {% else %}
+        _No children added yet._
+      {% endif %}
+
+  # ── Inventory Expiry Alert ─────────────────────────────────────────────────
+  - type: conditional
+    conditions:
+      - condition: template
+        value_template: >
+          {{ (state_attr('sensor.family_planner_summary', 'expiring_items') | int(0)) > 0 }}
+    card:
+      type: markdown
+      title: "⚠️ Expiring Soon"
+      card_mod:
+        style: |
+          ha-card {
+            border-radius: 16px;
+            background: linear-gradient(135deg, #fff7ed, #ffedd5);
+            border: 1px solid #fed7aa;
+          }
+          ha-card .card-header { color: #9a3412; font-weight: 800; }
+          ha-card .card-content { color: #c2410c; }
+      content: >
+        {% set n = state_attr('sensor.family_planner_summary', 'expiring_items') | int(0) %}
+        **{{ n }} item{{ 's' if n != 1 else '' }}** expiring within 3 days.
+        Check the Inventory tab in Family Planner.
+
+  # ── Embedded Calendar (iframe) ─────────────────────────────────────────────
+  # Shows the full Skylight-style calendar directly on your HA dashboard.
+  # IMPORTANT: The frontend must be accessible from the HA browser.
+  # You may need to allow framing: set X-Frame-Options=SAMEORIGIN or use
+  # a panel_iframe integration entry instead.
+  - type: iframe
+    title: Family Calendar
+    url: http://192.168.200.47/calendar
+    aspect_ratio: 60%
+
+  # ── Open App button ────────────────────────────────────────────────────────
+  - type: button
+    name: Open Family Planner
+    icon: mdi:calendar-heart
+    tap_action:
+      action: url
+      url_path: http://192.168.200.47
+    card_mod:
+      style: |
+        ha-card {
+          border-radius: 16px;
+          background: linear-gradient(135deg, #6366f1, #4f46e5);
+          color: white;
+        }
+        ha-card .card-header,
+        ha-card .card-content { color: white; }

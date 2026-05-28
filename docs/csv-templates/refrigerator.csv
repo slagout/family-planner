@@ -1,0 +1,4 @@
+upc,name,category,quantity,unit,expiration_date,shelf,temperature_zone,is_dairy_free,notes
+0001234567890,Oat Milk,Dairy-Alternative,1,carton,2026-05-20,Door,Cool,true,
+0002345678901,Free-range Eggs,Protein,12,each,2026-05-15,Middle Shelf,Cold,true,
+0003456789012,Fresh Spinach,Produce,1,bag,2026-05-10,Crisper,Cold,true,Baby leaf
