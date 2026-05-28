@@ -7,9 +7,11 @@ export interface User {
 
 export interface AuthPayload {
   userId: string;
+  /** Alias for userId — populated by all auth middleware for cross-compatibility */
+  id: string;
   email: string;
   displayName?: string | null;
-  roles?: string[];
+  roles: string[];
   keycloakSubject?: string;
 }
 
