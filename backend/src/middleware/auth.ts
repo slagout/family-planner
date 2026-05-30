@@ -12,7 +12,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   try {
     const payload = verifyToken(token);
     // Ensure both `userId` and `id` are set for cross-middleware compatibility
-    req.user = { roles: [], ...payload, id: payload.id ?? payload.userId };
+    req.user = { ...payload, id: payload.id ?? payload.userId, roles: payload.roles ?? [] };
     next();
   } catch (error) {
     res.status(401).json({
