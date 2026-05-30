@@ -74,13 +74,17 @@ export const childrenAPI = {
   list(): Promise<Child[]> {
     return client.get('/children').then((res) => res.data);
   },
-  create(data: {
-    name: string;
-    dateOfBirth?: string;
-    allergies?: string[];
-    dietaryRestrictions?: string[];
-  }): Promise<Child> {
-    return client.post('/children', data).then((res) => res.data);
+  create(
+    data: {
+      name: string;
+      dateOfBirth?: string;
+      allergies?: string[];
+      dietaryRestrictions?: string[];
+    },
+    pinToken?: string,
+  ): Promise<Child> {
+    const headers = pinToken ? { 'X-PIN-Session': pinToken } : {};
+    return client.post('/children', data, { headers }).then((res) => res.data);
   },
 };
 
@@ -89,19 +93,23 @@ export const choresAPI = {
     const params = childId ? { childId } : {};
     return client.get('/chores', { params }).then((res) => res.data);
   },
-  create(data: {
-    title: string;
-    description?: string;
-    frequency: 'daily' | 'weekly' | 'monthly' | 'once';
-    rewardPoints?: number;
-    dueDate?: string;
-    childId?: string;
-    assignedToGroup?: boolean;
-    splitType?: 'equal' | 'weighted';
-    groupChildIds?: string[];
-    groupWeights?: number[];
-  }): Promise<Chore> {
-    return client.post('/chores', data).then((res) => res.data);
+  create(
+    data: {
+      title: string;
+      description?: string;
+      frequency: 'daily' | 'weekly' | 'monthly' | 'once';
+      rewardPoints?: number;
+      dueDate?: string;
+      childId?: string;
+      assignedToGroup?: boolean;
+      splitType?: 'equal' | 'weighted';
+      groupChildIds?: string[];
+      groupWeights?: number[];
+    },
+    pinToken?: string,
+  ): Promise<Chore> {
+    const headers = pinToken ? { 'X-PIN-Session': pinToken } : {};
+    return client.post('/chores', data, { headers }).then((res) => res.data);
   },
   complete(choreId: string, childId: string, notes?: string): Promise<unknown> {
     return client.post(`/chores/${choreId}/complete`, { childId, notes }).then((res) => res.data);

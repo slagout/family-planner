@@ -35,7 +35,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       [email.toLowerCase(), passwordHash, displayName || null]
     );
     const user = rows[0];
-    const payload: AuthPayload = { userId: user.id, email: user.email };
+    const payload: AuthPayload = { userId: user.id, id: user.id, email: user.email, roles: ['parent'] };
     const token = signToken(payload);
     const refreshToken = createRefreshToken(payload);
 
@@ -71,7 +71,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
-    const payload: AuthPayload = { userId: user.id, email: user.email };
+    const payload: AuthPayload = { userId: user.id, id: user.id, email: user.email, roles: ['parent'] };
     const token = signToken(payload);
     const refreshToken = createRefreshToken(payload);
 

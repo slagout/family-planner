@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { listChildren, createChild } from '../handlers/childrenHandler';
 import { requireAuth } from '../middleware/auth';
 import { requireParent } from '../middleware/rbac';
+import { requirePinSession } from '../middleware/pinMiddleware';
 
 export const childrenRouter = Router();
 
@@ -17,4 +18,4 @@ childrenRouter.use(requireAuth);
 childrenRouter.use(ensureUserRoles);
 
 childrenRouter.get('/', requireParent(), listChildren);
-childrenRouter.post('/', requireParent(), createChild);
+childrenRouter.post('/', requireParent(), requirePinSession, createChild);

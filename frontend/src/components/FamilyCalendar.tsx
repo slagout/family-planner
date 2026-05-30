@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { client } from '../api/client';
+import client from '../api/client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DayMeal  { mealType: string; name: string }

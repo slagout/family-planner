@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { childrenAPI, Child } from '../api/familyApi';
+import { ParentalPinModal, getStoredPinToken } from './ParentalPinModal';
 
 export function ChildrenManager() {
   const [children, setChildren] = useState<Child[]>([]);
@@ -13,6 +14,8 @@ export function ChildrenManager() {
     dietaryRestrictions: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState<typeof formData | null>(null);
 
   useEffect(() => {
     loadChildren();
@@ -39,25 +42,33 @@ export function ChildrenManager() {
       return;
     }
 
+    const token = getStoredPinToken();
+    if (!token) {
+      setPendingSubmit(formData);
+      setShowPin(true);
+      return;
+    }
+
+    await submitChild(formData, token);
+  };
+
+  const submitChild = async (data: typeof formData, token: string) => {
     setIsSubmitting(true);
     setError(null);
     try {
-      const newChild = await childrenAPI.create({
-        name: formData.name.trim(),
-        dateOfBirth: formData.dateOfBirth || undefined,
-        allergies: formData.allergies ? formData.allergies.split(',').map((a) => a.trim()) : undefined,
-        dietaryRestrictions: formData.dietaryRestrictions
-          ? formData.dietaryRestrictions.split(',').map((d) => d.trim())
-          : undefined,
-      });
-
-      setChildren([...children, newChild]);
-      setFormData({
-        name: '',
-        dateOfBirth: '',
-        allergies: '',
-        dietaryRestrictions: '',
-      });
+      const newChild = await childrenAPI.create(
+        {
+          name: data.name.trim(),
+          dateOfBirth: data.dateOfBirth || undefined,
+          allergies: data.allergies ? data.allergies.split(',').map((a) => a.trim()) : undefined,
+          dietaryRestrictions: data.dietaryRestrictions
+            ? data.dietaryRestrictions.split(',').map((d) => d.trim())
+            : undefined,
+        },
+        token,
+      );
+      setChildren((prev) => [...prev, newChild]);
+      setFormData({ name: '', dateOfBirth: '', allergies: '', dietaryRestrictions: '' });
       setShowForm(false);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to add child');
@@ -67,10 +78,22 @@ export function ChildrenManager() {
     }
   };
 
+  const handlePinUnlocked = async (token: string) => {
+    setShowPin(false);
+    if (pendingSubmit) {
+      await submitChild(pendingSubmit, token);
+      setPendingSubmit(null);
+    }
+  };
+
+  const inputClass =
+    'w-full px-3 py-2 border border-gray-300 dark:border-gray-400 rounded-lg bg-white dark:bg-white text-gray-900 dark:text-gray-900 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500';
+  const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-800 mb-1';
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+    <div className="bg-white dark:bg-gray-200 rounded-xl shadow-sm border border-gray-100 dark:border-gray-300 p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">👶 Children</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-900">👶 Children</h2>
         <button
           onClick={() => setShowForm(!showForm)}
           className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
@@ -86,50 +109,51 @@ export function ChildrenManager() {
       )}
 
       {showForm && (
-        <form onSubmit={handleAddChild} className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <form
+          onSubmit={handleAddChild}
+          className="mb-6 p-4 bg-gray-50 dark:bg-gray-100 rounded-lg border border-gray-200 dark:border-gray-300"
+        >
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+              <label className={labelClass}>Name *</label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Child's name"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+              <label className={labelClass}>Date of Birth</label>
               <input
                 type="date"
                 value={formData.dateOfBirth}
                 onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Allergies (comma-separated)</label>
+              <label className={labelClass}>Allergies (comma-separated)</label>
               <input
                 type="text"
                 value={formData.allergies}
                 onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
                 placeholder="e.g., peanuts, dairy"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dietary Restrictions (comma-separated)
-              </label>
+              <label className={labelClass}>Dietary Restrictions (comma-separated)</label>
               <input
                 type="text"
                 value={formData.dietaryRestrictions}
                 onChange={(e) => setFormData({ ...formData, dietaryRestrictions: e.target.value })}
                 placeholder="e.g., vegetarian, gluten-free"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className={inputClass}
               />
             </div>
 
@@ -145,20 +169,37 @@ export function ChildrenManager() {
       )}
 
       {loading ? (
-        <div className="text-center py-8 text-gray-500">Loading children…</div>
+        <div className="text-center py-8 text-gray-500 dark:text-gray-600">Loading children…</div>
       ) : children.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">No children yet. Click "Add Child" to get started!</div>
+        <div className="text-center py-8 text-gray-500 dark:text-gray-600">
+          No children yet. Click "Add Child" to get started!
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {children.map((child) => (
-            <div key={child.id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-gray-800">{child.name}</h3>
-              {child.age !== null && <p className="text-sm text-gray-500">Age: {child.age}</p>}
-              <p className="text-sm text-gray-600 mt-2">⭐ {child.currentStars} stars</p>
-              <p className="text-sm text-gray-600">📋 {child.assignedChores} chores</p>
+            <div
+              key={child.id}
+              className="p-4 border border-gray-200 dark:border-gray-300 bg-white dark:bg-white rounded-lg hover:shadow-md transition-shadow"
+            >
+              <h3 className="font-semibold text-gray-900 dark:text-gray-900">{child.name}</h3>
+              {child.age !== null && (
+                <p className="text-sm text-gray-500 dark:text-gray-600">Age: {child.age}</p>
+              )}
+              <p className="text-sm text-gray-600 dark:text-gray-700 mt-2">⭐ {child.currentStars} stars</p>
+              <p className="text-sm text-gray-600 dark:text-gray-700">📋 {child.assignedChores} chores</p>
             </div>
           ))}
         </div>
+      )}
+
+      {showPin && (
+        <ParentalPinModal
+          onUnlocked={handlePinUnlocked}
+          onCancel={() => {
+            setShowPin(false);
+            setPendingSubmit(null);
+          }}
+        />
       )}
     </div>
   );
